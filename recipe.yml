@@ -74,15 +74,19 @@ runtime:
   # v2.1.4 musl unit's constructor panicked on the RTLD_NEXT lookup
   # (all 44 musl legs of the first 0.16.19 re-cut). musl keeps the
   # plain-dlsym arm (no symbol versioning → no compat twin).
-  wrapper_tebako: "2.1.5"
+  # v2.3.0 (2026-09-05, tebako#538): spec 29 (the runtime-as-wrapper
+  # pattern this pair is built on) flips PLANNED → SHIPPED. No wrapper
+  # code change — the pin moves to the first line where the contract
+  # the pair speaks is a shipped contract, not a draft.
+  wrapper_tebako: "2.3.0"
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
-  # download would be a supply-chain hole). Digests are the v2.1.5
-  # release's per-asset .sha256 sidecars, fetched 2026-09-02.
+  # download would be a supply-chain hole). Digests are the v2.3.0
+  # release's monolith SHA256SUMS entries, fetched 2026-09-05.
   wrapper_sha256:
-    macos-arm64: "ec2e7fe06e1ac3b5db472568d9e6470038d570d790dd0810fed3dd006aebc0a9"
-    linux-gnu-x86_64: "d93fbbf9a837cfed4ee46f8520c843d557214995904a4a936ebf09da979d9f04"
-    windows-ucrt64: "c76939db447596f5c4d06cee7520b73ba4353b95f63c1190eb5cbed73e1e6949"
+    macos-arm64: "699cfe592e0a9213b29945f3ec90557328acf91f0250ee50d1f4f9e0df3eba46"
+    linux-gnu-x86_64: "62f5f01650ae54b88289453a2eb76997dd5c1c31106d528151263eb07849f74a"
+    windows-ucrt64: "eef3eeec67d68aef1c67c78b07d213c3d19b3bff192d9f44a6ad5bd10b9b8bf8"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
@@ -91,18 +95,18 @@ runtime:
 # tools/pins.rb reads this block into $GITHUB_ENV). The tfs pins are
 # cross-checked against the release's SHA256SUMS at fetch time; the
 # link-unit tarballs are NOT in that monolith, so these pins are their
-# single trust anchor (verified against the v2.1.5 downloads 2026-09-02).
+# single trust anchor (verified against the v2.3.0 downloads 2026-09-05).
 tools:
   repo: "tamatebako/tebako"
-  release: "v2.1.5"
+  release: "v2.3.0"
   sha256:
     tfs:
-      macos-arm64: "20fe60ce2f02c6062aba5676d3aec60c13c625147493070ab190e7729966468a"
-      linux-gnu-x86_64: "431d76ae26641bca4e8bfb180aec29eb5de3f2c2a86f26acf75cc3c52b9fcfcd"
-      windows-ucrt64: "8b7dee79e96565a28df91dbaaa8cf42cffed5d19aa3d5318771edecbf9b86b35"
+      macos-arm64: "5f4bceb84630ef2e7ad30f5efccca36e1b8d6adf0501184d2bf46bc45b448f88"
+      linux-gnu-x86_64: "a8e90a0e3b719b93bbe921ff16a08ef9f6530d95343a178208042b8e1dd45105"
+      windows-ucrt64: "8c91132a7919a94f1aa389b6890fd47fa18e1750b7f1ac6cd31700ca678f7d39"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
-      macos-arm64: "2ea10ff397c5922754c463be0976dedfa4ecc833f2fe38bc88221f60b6f6a140"
-      linux-gnu-x86_64: "f93ed95514e176fb3ab27f156be8dcca19a1d44f87625fcec197f1c3a8e430f9"
+      macos-arm64: "5ba636b1d0ab34b6d05e5c4dca6a712dcaa79e1ca691ffe8f0cdd313bdd4c8e5"
+      linux-gnu-x86_64: "27093313f0051e6a40e9693f28eb79b085b199cc69c6050be7f582e101995bff"
 
 image:
   format: dwarfs
