@@ -5,11 +5,13 @@
 # SSOT) and emit KEY=VALUE lines for $GITHUB_ENV. The workflow carries NO
 # version or digest literals — every value flows from the recipe.
 #
-#   ruby tools/pins.rb <tool-platform> [--env]
-#   ruby tools/pins.rb --release-only
+#   ruby tools/pins.rb <tool-platform> [flavor] [--env]
+#   ruby tools/pins.rb --release-only [flavor]
 #
 # <tool-platform> is the tebako release asset platform (macos-arm64,
-# linux-gnu-x86_64, windows-ucrt64). --release-only emits just
+# linux-gnu-x86_64, windows-ucrt64). [flavor] is the recipe's flavor key
+# (spec 28 §8's implementation axis; default "temurin" — the pre-flavor
+# call shape keeps working). --release-only emits just
 # TEBAKO_RELEASE/PKG_NAME/PKG_VERSION. A tool listed in tools.sha256
 # without a pin for the requested platform is a named error, never a
 # guess (spec 00 §9).
@@ -42,15 +44,35 @@ release = tools.fetch("release")
 version = release.sub(/\Av/, "")
 die "recipe.yml tools.sha256 missing" unless tools["sha256"].is_a?(Hash)
 
+# The flavor axis (spec 28 §8): the flavor key names the recipe's
+# flavors:<flavor> block (default temurin). Positional after the
+# tool-platform (`pins.rb macos-arm64 graalvm --env`), or the sole
+# positional in --release-only mode (`pins.rb --release-only graalvm`).
+# PKG_VERSION, RUNTIME_STEM_BASE and IMPLEMENTATION follow the selected
+# flavor.
+positional = ARGV - ["--env", "--release-only"]
+flavor = if ARGV.include?("--release-only")
+           positional[0] || ENV["FLAVOR"] || "temurin"
+         else
+           positional[1] || ENV["FLAVOR"] || "temurin"
+         end
+flavors = recipe.fetch("flavors") do
+  die "recipe.yml flavors block missing"
+end
+flavor_block = flavors[flavor] or
+  die "recipe.yml: unknown flavor '#{flavor}' (have: #{flavors.keys.join(', ')})"
+
 runtime = recipe.fetch("runtime")
 wrapper_tebako = runtime.fetch("wrapper_tebako")
-pkg_version = recipe.dig("upstream", "version") ||
-              die("recipe.yml upstream.version missing")
+pkg_version = flavor_block.dig("upstream", "version") ||
+              die("recipe.yml flavors.#{flavor}.upstream.version missing")
 
 pairs = {
   "TEBAKO_RELEASE" => release,
   "PKG_NAME" => recipe.fetch("name"),
   "PKG_VERSION" => pkg_version,
+  "FLAVOR" => flavor,
+  "IMPLEMENTATION" => flavor_block.fetch("implementation"),
 }
 
 unless ARGV.include?("--release-only")
