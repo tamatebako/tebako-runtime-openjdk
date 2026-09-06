@@ -78,15 +78,22 @@ runtime:
   # pattern this pair is built on) flips PLANNED → SHIPPED. No wrapper
   # code change — the pin moves to the first line where the contract
   # the pair speaks is a shipped contract, not a draft.
-  wrapper_tebako: "2.3.0"
+  # v2.4.0 (2026-09-06): REQUIRED, not hygiene. The launcher's embedded
+  # tpkg model must read spec 32's `kind: executable` requires edge
+  # (shipped in tebako v2.2.0): metanorma 1.16.9-9 declares that edge
+  # (xml2rfc spawn) and the 2.3.0 launcher's manifest parse refuses it
+  # by the evolution law ("Jing failed … unknown variant `executable`"
+  # on the 2026-09-06 bench's v2-shim cells). 2.4.0 is the current line
+  # (enterprise networking, TODO.v2-1/33).
+  wrapper_tebako: "2.4.0"
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
-  # download would be a supply-chain hole). Digests are the v2.3.0
-  # release's monolith SHA256SUMS entries, fetched 2026-09-05.
+  # download would be a supply-chain hole). Digests are the v2.4.0
+  # release's monolith SHA256SUMS entries, fetched 2026-09-06.
   wrapper_sha256:
-    macos-arm64: "699cfe592e0a9213b29945f3ec90557328acf91f0250ee50d1f4f9e0df3eba46"
-    linux-gnu-x86_64: "62f5f01650ae54b88289453a2eb76997dd5c1c31106d528151263eb07849f74a"
-    windows-ucrt64: "eef3eeec67d68aef1c67c78b07d213c3d19b3bff192d9f44a6ad5bd10b9b8bf8"
+    macos-arm64: "b27b44f560af3935458066e6d8815a8c985025ddf9657483303b45ad98e1db4c"
+    linux-gnu-x86_64: "910fc6d538e624150c9967564c67aefa277686ec00a77d898de8d78753ff12a7"
+    windows-ucrt64: "a97fc14d15f354e561c8c8c2bcfd007469fff343a58d0883de8181b85eee66f9"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
@@ -95,18 +102,18 @@ runtime:
 # tools/pins.rb reads this block into $GITHUB_ENV). The tfs pins are
 # cross-checked against the release's SHA256SUMS at fetch time; the
 # link-unit tarballs are NOT in that monolith, so these pins are their
-# single trust anchor (verified against the v2.3.0 downloads 2026-09-05).
+# single trust anchor (verified against the v2.4.0 downloads 2026-09-06).
 tools:
   repo: "tamatebako/tebako"
-  release: "v2.3.0"
+  release: "v2.4.0"
   sha256:
     tfs:
-      macos-arm64: "5f4bceb84630ef2e7ad30f5efccca36e1b8d6adf0501184d2bf46bc45b448f88"
-      linux-gnu-x86_64: "a8e90a0e3b719b93bbe921ff16a08ef9f6530d95343a178208042b8e1dd45105"
-      windows-ucrt64: "8c91132a7919a94f1aa389b6890fd47fa18e1750b7f1ac6cd31700ca678f7d39"
+      macos-arm64: "e4da011f8583d5d24f4d257fecd4df0274476bcb510d9f5df70e08e288cb008c"
+      linux-gnu-x86_64: "70d83415f26f0aedc793de325df92e8ba27314172c61320a32b8cf5c014ee322"
+      windows-ucrt64: "68483be15478b0a79bbca66b31becfe935ae28a419d39a5bf779322a88f94d27"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
-      macos-arm64: "5ba636b1d0ab34b6d05e5c4dca6a712dcaa79e1ca691ffe8f0cdd313bdd4c8e5"
-      linux-gnu-x86_64: "27093313f0051e6a40e9693f28eb79b085b199cc69c6050be7f582e101995bff"
+      macos-arm64: "e77c4a2213884bd322e33a176b3c470b222ee870d3af9e5c8e2f11497b00bdde"
+      linux-gnu-x86_64: "232b0df7bc4155651f13889c3528c14f19c976bdb0c912bd9867f9ef25fcfbd8"
 
 image:
   format: dwarfs
