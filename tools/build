@@ -166,6 +166,22 @@ for v in ENGINE IMPLEMENTATION LANG_VERSION ABI_LINE API_VERSION INTERPRETER VIS
   [ -n "$val" ] || { echo "recipe.yml runtime/flavors.$FLAVOR .${v} unreadable (or empty)"; exit 1; }
 done
 [ -n "$ENTRYPOINTS" ] || { echo "recipe.yml flavors.$FLAVOR.entrypoints unreadable (or empty)"; exit 1; }
+# The windows carve-out (optional per-flavor entrypoints_windows_drop):
+# names upstream ships only as .cmd launchers on windows (graalvm's
+# native-image family) leave the declared surface on that leg — the
+# manifest declares the platform-true truth and read-back still enforces
+# every remaining name.
+if [ -n "$EXE_SUFFIX" ]; then
+  DROP="$(recipe_flavor_value entrypoints_windows_drop | sed -E 's/^\[//; s/\]$//; s/,/ /g')"
+  if [ -n "$DROP" ]; then
+    kept=""
+    for ep in $ENTRYPOINTS; do
+      case " $DROP " in *" $ep "*) : ;; *) kept="$kept $ep" ;; esac
+    done
+    ENTRYPOINTS="${kept# }"
+    echo "windows entrypoints carve-out applied: dropped [$DROP ]"
+  fi
+fi
 
 # Per-platform spellings: the layout's mount_root must equal the wrapper
 # exe's compiled-in WRAPPER_RUNTIME_ROOT (a mismatch is exit 78); the

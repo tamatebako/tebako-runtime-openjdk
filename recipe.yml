@@ -50,6 +50,12 @@ flavors:
     # jlink and the native-image toolchain ride along; the spawn surface
     # still leads with java).
     entrypoints: [java, jar, jarsigner, javac, javadoc, javap, jcmd, jconsole, jdb, jdeprscan, jdeps, jfr, jhsdb, jimage, jinfo, jlink, jmap, jmod, jnativescan, jpackage, jps, jrunscript, jshell, jstack, jstat, jstatd, jwebserver, keytool, native-image, native-image-configure, native-image-utils, rmiregistry, serialver]
+    # On windows the native-image family ships as .cmd launchers
+    # (native-image.cmd etc. — verified against the upstream zip's bin/
+    # 2026-09-06; every other declared name ships as .exe). Exec of a
+    # .cmd through the runtime boot is untested, so the windows leg
+    # declares the platform-true surface: the 30 .exe tools only.
+    entrypoints_windows_drop: [native-image, native-image-configure, native-image-utils]
     upstream:
       # GraalVM Community 25.3.4.1 (JDK 25.0.4.1, graalvm-ce-builds) —
       # same repack pattern as temurin, one binary source per platform;
