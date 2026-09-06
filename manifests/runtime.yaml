@@ -27,6 +27,11 @@ provides:
     version: "@@VERSION@@"
     abi_line: "@@ABI_LINE@@"
     platform: "@@TRIPLET@@"
+    # spec 28 §8's flavor axis — EngineProvides.implementation (tpkg
+    # since spec 30 §1; additive, absent = eligible). L1 is authoritative;
+    # the release-index shard mirrors the same value for the store's
+    # entry_meta. SSOT: recipe.yml's flavors.<flavor>.implementation.
+    implementation: "@@IMPLEMENTATION@@"
   built_from:
     src_sha256: "@@UPSTREAM_SHA256@@"
     patch_set: "none"   # a repack applies no patches; the field is required non-empty
@@ -34,13 +39,13 @@ provides:
   # separate process for a consumer payload's `runtime` edge expose list.
   # tpkg carries runtime entrypoints since tebako v2.1.0 (pre-2.1.0
   # mkimage STRIPPED keys the model lacked — verified 2026-08-30).
-  # tools/build renders this block from recipe.yml's runtime.entrypoints
+  # tools/build renders this block from the recipe's flavor entrypoints
   # (the feedstock SSOT): each name maps to /bin/<name>[.exe] — the
-  # JRE's own bin inventory; a runtime runs on itself, so no
-  # runtime_requirement. spec 28 §8's `implementation` still rides
-  # recipe.yml's runtime.implementation (tpkg's EngineProvides carries
-  # no such key; nothing product-side reads it — identity flows via
-  # engine + version).
+  # JDK's own bin inventory; a runtime runs on itself, so no
+  # runtime_requirement. spec 28 §8's `implementation` rides recipe.yml's
+  # flavors.<flavor>.implementation into BOTH the provides block above
+  # (L1, authoritative) and the release-index shard (L3 — the store's
+  # entry_meta reads it from the cached manifest.json).
   entrypoints:
 @@ENTRYPOINTS_YAML@@
   env: {}

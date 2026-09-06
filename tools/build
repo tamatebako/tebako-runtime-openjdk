@@ -2,8 +2,8 @@
 # tools/build — fetch + stage + image the openjdk RUNTIME pair (one
 # mechanical leg per triplet, per docs/conventions.md).
 #
-# Repack flow (no compilation): download the pinned Temurin JRE archive
-# for THIS leg's platform, sha256-verify, unpack to the payload root
+# Repack flow (no compilation): download the pinned archive of THIS
+# leg's flavor (recipe.yml flavors:<FLAVOR>) for THIS leg's platform, sha256-verify, unpack to the payload root
 # (strip_components from the recipe), stage the preload shim (POSIX
 # legs), embed the tier-1 runtime manifest at /__tpkg__/manifest.yaml
 # (blob digest zeroed per the fixed-point rule) and the layout
@@ -20,6 +20,9 @@
 # manifest.json + SHA256SUMS.txt from the shards).
 #
 # Inputs (env; the workflow's matrix exports the per-leg values):
+#   FLAVOR         the recipe's flavor key (spec 28 §8's implementation
+#                  axis — temurin is the default flavor; graalvm serves
+#                  `java:graalvm` selectors)    (default: temurin)
 #   TRIPLET        spec 03 triplet        (default: aarch64-macos)
 #   ASSET_PLATFORM release-asset name form (default: macos-arm64)
 #   EXE_SUFFIX     payload exe suffix     (default: empty; .exe on windows)
@@ -32,15 +35,16 @@
 #   PRELOAD_SHIM   libtfs_preload.dylib/.so to stage (REQUIRED on POSIX;
 #                                          ignored on windows — the
 #                                          windows image omits the grant)
-#   WORK           build workspace (default: out/work-$TRIPLET)
-#   OUT            artifact dir   (default: out/$TRIPLET)
+#   WORK           build workspace (default: out/work-$FLAVOR-$TRIPLET)
+#   OUT            artifact dir   (default: out/$FLAVOR-$TRIPLET)
 #
 # Produces: $OUT/tebako-runtime-<line>-<ver>-<asset>.tfs + the wrapper
-# exe + sidecars + shard (+ payload-$TRIPLET.yaml, the release-tier
+# exe + sidecars + shard (+ payload-$FLAVOR-$TRIPLET.yaml, the release-tier
 # manifest with the real blob sha).
 set -euo pipefail
 
 FEEDSTOCK="$(cd "$(dirname "$0")/.." && pwd)"
+FLAVOR="${FLAVOR:-temurin}"
 TRIPLET="${TRIPLET:-aarch64-macos}"
 ASSET_PLATFORM="${ASSET_PLATFORM:-macos-arm64}"
 EXE_SUFFIX="${EXE_SUFFIX:-}"
@@ -49,8 +53,8 @@ TAR="${TAR:-tar}"
 TFS_CLI="${TFS_CLI:-tfs}"
 WRAPPER_BIN="${WRAPPER_BIN:-}"
 PRELOAD_SHIM="${PRELOAD_SHIM:-}"
-WORK="${WORK:-$FEEDSTOCK/out/work-$TRIPLET}"
-OUT="${OUT:-$FEEDSTOCK/out/$TRIPLET}"
+WORK="${WORK:-$FEEDSTOCK/out/work-$FLAVOR-$TRIPLET}"
+OUT="${OUT:-$FEEDSTOCK/out/$FLAVOR-$TRIPLET}"
 
 step() { printf '\n== %s\n' "$*"; }
 
@@ -59,20 +63,58 @@ sha256_of() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -d' ' 
 sha256_check() { echo "$1  $2" | { sha256sum -c - 2>/dev/null || shasum -a 256 -c -; }; }
 filesize() { stat -f%z "$1" 2>/dev/null || stat -c%s "$1"; }
 
-# The recipe pins version/build as top-level scalars and the per-platform
-# sources as an array (url/sha256/strip_components per platform entry) —
-# parse both without a YAML dependency (the recipe's shape is the
-# feedstock's own convention, indentation-anchored).
+# The recipe carries a flavor dimension (spec 28 §8's implementation
+# axis): flavors:<FLAVOR> holds the per-flavor scalars (4-space indent),
+# its upstream: block the version/build scalars (6-space) and the
+# per-platform sources array (8/10-space). Parse without a YAML
+# dependency (the recipe's shape is the feedstock's own convention,
+# indentation-anchored). FLAVOR names the block; an unknown flavor reads
+# empty and fails the presence checks below — a named error, never a
+# guess (spec 00 §9).
+_flavor_scope='
+  /^flavors:/ { infl = 1; next }
+  /^[a-z_]+:/ { infl = 0 }
+  infl && index($0, "  " flavor ":") == 1 { inf = 1; next }
+  infl && inf && /^  [a-z_]+:/ { inf = 0 }
+  !(infl && inf) { next }
+'
+recipe_flavor_value() {
+  # per-flavor scalar (implementation, language_version, abi_line,
+  # interpreter_api_version, entrypoints) — 4-space under the flavor key.
+  awk -v flavor="$FLAVOR" -v key="$1" "$_flavor_scope"'
+    $0 ~ ("^    " key ":") {
+      line = $0
+      sub("^    " key ": *", "", line)
+      sub("^\"", "", line)
+      sub("\".*$", "", line)
+      sub(/[ \t]+#.*$/, "", line)
+      sub(/[ \t]+$/, "", line)
+      print line
+      exit
+    }
+  ' "$FEEDSTOCK/recipe.yml"
+}
 recipe_value() {
-  # tolerate trailing comments (build: "8"  # …) — the value ends at the
-  # closing quote; anything after it is dropped
-  grep -E "^  $1:" "$FEEDSTOCK/recipe.yml" | head -1 | sed -E "s/^  $1: *\"?([^\"]*)\"?.*$/\1/"
+  # the flavor's upstream scalar (version, build) — 6-space; tolerates
+  # trailing comments (build: "8"  # …) — the value ends at the closing
+  # quote; anything after it is dropped
+  awk -v flavor="$FLAVOR" -v key="$1" "$_flavor_scope"'
+    $0 ~ ("^      " key ":") {
+      line = $0
+      sub("^      " key ": *\"?", "", line)
+      sub("\".*$", "", line)
+      sub(/[ \t]+#.*$/, "", line)
+      sub(/[ \t]+$/, "", line)
+      print line
+      exit
+    }
+  ' "$FEEDSTOCK/recipe.yml"
 }
 recipe_source_value() {
-  awk -v platform="$TRIPLET" -v key="$1" '
-    /^    - platform:/ { active = ($0 ~ "\"" platform "\"") }
-    active && $0 ~ "^      " key ":" {
-      sub("^      " key ": *\"?", "")
+  awk -v flavor="$FLAVOR" -v platform="$TRIPLET" -v key="$1" "$_flavor_scope"'
+    /^        - platform:/ { active = ($0 ~ "\"" platform "\"") }
+    active && $0 ~ ("^          " key ":") {
+      sub("^          " key ": *\"?", "")
       sub("\"$", "")
       print
       exit
@@ -80,8 +122,10 @@ recipe_source_value() {
   ' "$FEEDSTOCK/recipe.yml"
 }
 # The runtime block's scalars (indented two under the top-level
-# `runtime:` key). Quoted and unquoted values both parse; trailing
-# comments are dropped either way.
+# `runtime:` key) — the SHARED contract keys; the per-flavor contract
+# keys live under flavors:<flavor> (recipe_flavor_value above). Quoted
+# and unquoted values both parse; trailing comments are dropped either
+# way.
 recipe_runtime_value() {
   awk -v key="$1" '
     /^runtime:/ { inrt = 1; next }
@@ -105,23 +149,23 @@ URL="$(recipe_source_value url)"
 SHA256="$(recipe_source_value sha256)"
 STRIP="$(recipe_source_value strip_components)"
 [ -n "$VERSION" ] && [ -n "$BUILD" ] && [ -n "$URL" ] && [ -n "$SHA256" ] && [ -n "$STRIP" ] || {
-  echo "recipe.yml upstream version/build or a sources entry for $TRIPLET unreadable"; exit 1; }
+  echo "recipe.yml flavors.$FLAVOR upstream version/build or a sources entry for $TRIPLET unreadable (unknown FLAVOR?)"; exit 1; }
 
 ENGINE="$(recipe_runtime_value engine)"
-IMPLEMENTATION="$(recipe_runtime_value implementation)"
-LANG_VERSION="$(recipe_runtime_value language_version)"
-ABI_LINE="$(recipe_runtime_value abi_line)"
-API_VERSION="$(recipe_runtime_value interpreter_api_version)"
+IMPLEMENTATION="$(recipe_flavor_value implementation)"
+LANG_VERSION="$(recipe_flavor_value language_version)"
+ABI_LINE="$(recipe_flavor_value abi_line)"
+API_VERSION="$(recipe_flavor_value interpreter_api_version)"
 INTERPRETER="$(recipe_runtime_value interpreter)"
 VISIBILITY="$(recipe_runtime_value visibility)"
 WRAPPER_TEBAKO="$(recipe_runtime_value wrapper_tebako)"
 # The entrypoints flow list: [java, jfr, …] → a space-separated shell list.
-ENTRYPOINTS="$(recipe_runtime_value entrypoints | sed -E 's/^\[//; s/\]$//; s/,/ /g')"
+ENTRYPOINTS="$(recipe_flavor_value entrypoints | sed -E 's/^\[//; s/\]$//; s/,/ /g')"
 for v in ENGINE IMPLEMENTATION LANG_VERSION ABI_LINE API_VERSION INTERPRETER VISIBILITY WRAPPER_TEBAKO; do
   eval "val=\$$v"
-  [ -n "$val" ] || { echo "recipe.yml runtime.${v} unreadable (or empty)"; exit 1; }
+  [ -n "$val" ] || { echo "recipe.yml runtime/flavors.$FLAVOR .${v} unreadable (or empty)"; exit 1; }
 done
-[ -n "$ENTRYPOINTS" ] || { echo "recipe.yml runtime.entrypoints unreadable (or empty)"; exit 1; }
+[ -n "$ENTRYPOINTS" ] || { echo "recipe.yml flavors.$FLAVOR.entrypoints unreadable (or empty)"; exit 1; }
 
 # Per-platform spellings: the layout's mount_root must equal the wrapper
 # exe's compiled-in WRAPPER_RUNTIME_ROOT (a mismatch is exit 78); the
@@ -144,8 +188,8 @@ STEM="tebako-runtime-$WRAPPER_TEBAKO-$VERSION-$ASSET_PLATFORM"
 mkdir -p "$WORK" "$OUT"
 
 # ------------------------------------------------------------------ fetch
-step "fetch + sha256-verify Temurin JRE $VERSION ($TRIPLET)"
-ARCHIVE="$WORK/temurin-jre$EXT"
+step "fetch + sha256-verify $IMPLEMENTATION $VERSION ($TRIPLET)"
+ARCHIVE="$WORK/$IMPLEMENTATION-jdk$EXT"
 if [ ! -f "$ARCHIVE" ]; then
   curl -sL --fail -o "$ARCHIVE" "$URL"
 fi
@@ -161,6 +205,52 @@ mkdir -p "$ROOT"
 # The JRE's own layout IS the payload layout (/bin/java, /lib, /release).
 "$TAR" -xf "$ARCHIVE" -C "$ROOT" --strip-components="$STRIP"
 [ -x "$ROOT/bin/java$EXE_SUFFIX" ] || { echo "no bin/java$EXE_SUFFIX in the staged tree"; exit 1; }
+
+# The dwarfs-t writer has no symlink node type (verified 2026-09-06 on the
+# graalvm tree: a symlink lands as a 0-byte regular-file node that stat
+# cannot open — silent zeroing; named ecosystem follow-up: the writer
+# should either store link nodes or refuse loudly at write time). The
+# stage therefore dereferences every symlink whose terminal target is a
+# real file INSIDE the staged tree — the name surface stays upstream's,
+# the bytes are the target's. A dangling or tree-escaping link is a named
+# error here, never a silent 0-byte node in the image. (graalvm carries
+# five: bin/native-image*, lib/svm/bin/native-image-configure,
+# LICENSE_NATIVEIMAGE.txt; the temurin JRE carries none — same code path,
+# no-op there.)
+step "dereference in-tree symlinks (the writer has no link node type)"
+resolve_link() {
+  # $1 = a symlink's path; prints the terminal real file's absolute path.
+  # Returns 2 on an absolute target (would escape the VFS root), 1 on a
+  # dangling/too-deep chain.
+  local p="$1" t d n=0
+  while [ -L "$p" ]; do
+    n=$((n+1)); [ "$n" -gt 8 ] && return 1
+    t="$(readlink "$p")"
+    case "$t" in /*) return 2 ;; esac
+    d="$(cd "$(dirname "$p")" && cd "$(dirname "$t")" 2>/dev/null && pwd -P)" || return 1
+    p="$d/$(basename "$t")"
+  done
+  [ -f "$p" ] || return 1
+  printf '%s' "$p"
+}
+deref_count=0
+while IFS= read -r link; do
+  rel="${link#"$ROOT"/}"
+  if resolved="$(resolve_link "$link")"; then
+    case "$resolved" in
+      "$ROOT"/*) : ;;
+      *) echo "symlink $rel resolves outside the payload tree: $resolved"; exit 1 ;;
+    esac
+    rm "$link" && cp "$resolved" "$link"
+    deref_count=$((deref_count+1))
+  else
+    rc=$?
+    [ "$rc" = 2 ] && echo "symlink $rel has an ABSOLUTE target (escapes the VFS root): $(readlink "$link")" \
+                  || echo "symlink $rel dangles or loops"
+    exit 1
+  fi
+done < <(find "$ROOT" -type l)
+echo "dereferenced: $deref_count"
 
 # The preload shim rides the image on POSIX legs (the layout's
 # preload_shim grant; the driver arms DYLD_INSERT_LIBRARIES / LD_PRELOAD
@@ -192,11 +282,12 @@ sed -e "s|@@NAME@@|openjdk|g" \
     -e "s|@@VERSION@@|$VERSION|g" \
     -e "s|@@CREATED@@|$(date -u +%Y-%m-%dT%H:%M:%SZ)|g" \
     -e "s|@@UPSTREAM_SHA256@@|$SHA256|g" \
-    -e "s|@@UPSTREAM_COMMIT@@|temurin-$VERSION+$BUILD|g" \
+    -e "s|@@UPSTREAM_COMMIT@@|$IMPLEMENTATION-$VERSION+$BUILD|g" \
     -e "s|@@BLOB_SHA256@@|0000000000000000000000000000000000000000000000000000000000000000|g" \
     -e "s|@@ENGINE@@|$ENGINE|g" \
     -e "s|@@ABI_LINE@@|$ABI_LINE|g" \
     -e "s|@@TRIPLET@@|$TRIPLET|g" \
+    -e "s|@@IMPLEMENTATION@@|$IMPLEMENTATION|g" \
     "$FEEDSTOCK/manifests/runtime.yaml" |
   EP_YAML="$EP_YAML" awk '{ if (index($0, "@@ENTRYPOINTS_YAML@@")) printf "%s", ENVIRON["EP_YAML"]; else print }' \
     > "$ROOT/__tpkg__/manifest.yaml"
@@ -249,6 +340,7 @@ cat > "$OUT/$STEM.manifest.json" <<EOF
   "contract_era": 2,
   "contract_version": 2,
   "java_version": "$VERSION",
+  "implementation": "$IMPLEMENTATION",
   "platform": "$ASSET_PLATFORM",
   "filename": "$STEM$EXE_SUFFIX",
   "sha256": "$exe_sha",
@@ -307,8 +399,8 @@ done
 # ------------------------------------------------------ sibling manifest
 step "fill the sibling manifest (release tier: real blob sha)"
 sed -e "s|@@BLOB_SHA256@@|$sha|g" \
-    "$ROOT/__tpkg__/manifest.yaml" > "$OUT/payload-$TRIPLET.yaml"
-echo "manifest: $OUT/payload-$TRIPLET.yaml"
+    "$ROOT/__tpkg__/manifest.yaml" > "$OUT/payload-$FLAVOR-$TRIPLET.yaml"
+echo "manifest: $OUT/payload-$FLAVOR-$TRIPLET.yaml"
 
 # -------------------------------------------------------------- smoke
 step "boot smoke (the imaged java answers -version on the host)"

@@ -5,11 +5,15 @@ schema_version: 1
 # (the CLI refuses kind: runtime — runtimes publish through the runtime
 # release flow). kind: runtime entries carry NO entrypoints key (the
 # registry validator: only apps and toolkits declare entrypoints).
+# `implementation` is the spec 28 §8 flavor axis (temurin here; graalvm
+# rides the sibling registry-graalvm.yaml template, concatenated onto
+# this document by the publish job).
 payloads:
 - name: openjdk
   kind: runtime
   versions:
   - version: '@@VERSION@@'
+    implementation: temurin
     platforms:
       aarch64-macos:
         artifact: @@STEM@@-macos-arm64.tfs

@@ -2,28 +2,75 @@
 # spec 13 §9 + docs/conventions.md in tebako-packages/index
 name: "openjdk"
 kind: runtime
-summary: "OpenJDK (Temurin JRE) — a tebako java RUNTIME pair (wrapper exe + env image); the hermetic java for metanorma's jing/mn2pdf chain"
+summary: "OpenJDK (Temurin JRE / GraalVM Community JDK) — tebako java RUNTIME pairs (wrapper exe + env image); the hermetic java for metanorma's jing/mn2pdf chain and truffleruby-jvm"
 
-upstream:
-  # Eclipse Temurin JRE 21.0.12+8 (Adoptium) — one binary source per
-  # platform (repack: no compilation). platform is the spec 03 triplet;
-  # strip_components is the nesting depth of the payload root inside the
-  # archive (macOS nests under <tag>/Contents/Home, windows under one dir).
-  version: "21.0.12"
-  build: "8"            # the Temurin build number (21.0.12+8)
-  sources:
-    - platform: "aarch64-macos"
-      url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12_8.tar.gz"
-      sha256: "36bb71d6fa5184e12a6483e7662783c2cbd383f5dca8034140f0a84dd5aa797d"
-      strip_components: 3
-    - platform: "x86_64-windows-ucrt"
-      url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_windows_hotspot_21.0.12_8.zip"
-      sha256: "b8aa18fef5edb69bee8618f99677d66d0873d22cb40d974c15ac9ffcdecf73ba"
-      strip_components: 1
-    - platform: "x86_64-linux-gnu"
-      url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_linux_hotspot_21.0.12_8.tar.gz"
-      sha256: "8a379a67c91a3ae61ffb33d46e0a40c7ba35e70713c4db31cfca30492f792eff"
-      strip_components: 1
+# The spec 28 §8 implementation axis: ONE recipe, flavored sources.
+# temurin is the DEFAULT flavor — every default resolution channel (the
+# registry's default row, config pins, the press lock) points here, and an
+# edge omitting `implementation` lands temurin on a fresh store. graalvm
+# serves `java:graalvm` selectors (TODO.truffleruby/03's jvm-mode runtime
+# declares DEPENDS java:graalvm >= 24 — graalvm is never the default pick;
+# see the PR body for the co-cached newest-across-flavors note).
+flavors:
+  temurin:
+    implementation: "temurin"
+    language_version: "21"           # the java language line (JAVA_VERSION's major)
+    abi_line: "21"                   # the JVM's own line grammar; java has no native-ext ABI grammar
+    interpreter_api_version: "21"    # layout.yaml's required declared line
+    # The complete bin/ inventory of the staged JRE (spec 03 §2.2
+    # completeness — verified against the staged tree 2026-08-30).
+    entrypoints: [java, jfr, jrunscript, jwebserver, keytool, rmiregistry]
+    upstream:
+      # Eclipse Temurin JRE 21.0.12+8 (Adoptium) — one binary source per
+      # platform (repack: no compilation). platform is the spec 03 triplet;
+      # strip_components is the nesting depth of the payload root inside the
+      # archive (macOS nests under <tag>/Contents/Home, windows under one dir).
+      version: "21.0.12"
+      build: "8"            # the Temurin build number (21.0.12+8)
+      sources:
+        - platform: "aarch64-macos"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12_8.tar.gz"
+          sha256: "36bb71d6fa5184e12a6483e7662783c2cbd383f5dca8034140f0a84dd5aa797d"
+          strip_components: 3
+        - platform: "x86_64-windows-ucrt"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_windows_hotspot_21.0.12_8.zip"
+          sha256: "b8aa18fef5edb69bee8618f99677d66d0873d22cb40d974c15ac9ffcdecf73ba"
+          strip_components: 1
+        - platform: "x86_64-linux-gnu"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_linux_hotspot_21.0.12_8.tar.gz"
+          sha256: "8a379a67c91a3ae61ffb33d46e0a40c7ba35e70713c4db31cfca30492f792eff"
+          strip_components: 1
+  graalvm:
+    implementation: "graalvm"
+    language_version: "25"
+    abi_line: "25"
+    interpreter_api_version: "25"
+    # The complete bin/ inventory of the staged GraalVM JDK (verified
+    # against the staged macos tree 2026-09-06; a JDK, not a JRE — javac,
+    # jlink and the native-image toolchain ride along; the spawn surface
+    # still leads with java).
+    entrypoints: [java, jar, jarsigner, javac, javadoc, javap, jcmd, jconsole, jdb, jdeprscan, jdeps, jfr, jhsdb, jimage, jinfo, jlink, jmap, jmod, jnativescan, jpackage, jps, jrunscript, jshell, jstack, jstat, jstatd, jwebserver, keytool, native-image, native-image-configure, native-image-utils, rmiregistry, serialver]
+    upstream:
+      # GraalVM Community 25.3.4.1 (JDK 25.0.4.1, graalvm-ce-builds) —
+      # same repack pattern as temurin, one binary source per platform;
+      # upstream publishes .sha256 sidecars (the pinned digests below,
+      # fetched 2026-09-06). macOS nests <tag>/Contents/Home like temurin;
+      # the windows source is a zip (bsdtar leg).
+      version: "25.0.4.1"     # the JDK line (JAVA_VERSION)
+      build: "25.3.4.1"       # the GraalVM release id (tag graal-25.3.4.1)
+      sources:
+        - platform: "aarch64-macos"
+          url: "https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.3.4.1/graalvm-community-jdk-25i3-25.0.4.1_macos-aarch64_bin.tar.gz"
+          sha256: "ebfab1d74420f355a459076162012d6835fa6068bd9d2f230f1fcaf7ee0dd923"
+          strip_components: 3
+        - platform: "x86_64-windows-ucrt"
+          url: "https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.3.4.1/graalvm-community-jdk-25i3-25.0.4.1_windows-x64_bin.zip"
+          sha256: "770a0d78aba4c19bd40ee410ec82afbbee8e33fdd762e509006ac64e1007b4ce"
+          strip_components: 1
+        - platform: "x86_64-linux-gnu"
+          url: "https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.3.4.1/graalvm-community-jdk-25i3-25.0.4.1_linux-x64_bin.tar.gz"
+          sha256: "b2bc38d0c4141426eb44d0eefa3cc172c96faf92727d703b61541699128b6fc7"
+          strip_components: 1
 
 build:
   system: repack          # no compilation: unpack, prune, image
@@ -32,22 +79,19 @@ build:
 # The runtime contract (spec 28 revised §8 + spec 29). tools/build renders
 # manifests/runtime.yaml (tier-1, embedded at /__tpkg__/manifest.yaml) and
 # manifests/layout.yaml (the driver pair contract, /lib/tebako/layout.yaml)
-# from this block — the feedstock's SSOT for the pair's declared identity.
+# from this block + the selected flavor's block — the feedstock's SSOT for
+# the pair's declared identity. The per-flavor keys (implementation,
+# language_version, abi_line, interpreter_api_version, entrypoints) live
+# under flavors:<flavor>; the keys here are shared by both flavors.
 runtime:
   engine: "java"
-  implementation: "temurin"        # REQUIRED for kind: runtime (spec 28 §8)
-  language_version: "21"           # the java language line (JAVA_VERSION's major)
-  abi_line: "21"                   # the JVM's own line grammar; java has no native-ext ABI grammar
   contract_version: 2              # the spec 17 driver contract the wrapper speaks
-  interpreter_api_version: "21"    # layout.yaml's required declared line
   interpreter: "/bin/java"         # the wrapper's interpreter grant (layout schema_minor 4)
-  # The complete bin/ inventory of the staged JRE (spec 03 §2.2
-  # completeness — verified against the staged tree 2026-08-30). This is
-  # the feedstock SSOT for the spawn surface (spec 30 §2): tools/build
-  # renders it into the env image manifest's runtime entrypoints, the
-  # driver's bare-name --tebako-entry resolves against exactly these
-  # declarations, and the read-back + smoke gates prove them.
-  entrypoints: [java, jfr, jrunscript, jwebserver, keytool, rmiregistry]
+  # The per-flavor entrypoints list (flavors:<flavor>.entrypoints) is the
+  # feedstock SSOT for the spawn surface (spec 30 §2): tools/build renders
+  # it into the env image manifest's runtime entrypoints, the driver's
+  # bare-name --tebako-entry resolves against exactly these declarations,
+  # and the read-back + smoke gates prove them.
   visibility: "exec-cache"         # spec 29 §3: a JVM needs no VFS once its home is materialized; universal across triplets
   mount_root_override: false       # closed default — nothing in the JVM follows TEBAKO_MOUNT_ROOT; granting a no-op knob violates spec 00 §9
   # The tebako product line the pair builds against: the wrapper exe

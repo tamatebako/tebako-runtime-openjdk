@@ -1,6 +1,7 @@
 name: build-payload
 # openjdk feedstock: fetch → stage → image → smoke → (on tags) publish.
-# One mechanical leg per (version × platform) in the recipe's sources —
+# One mechanical leg per (flavor × version × platform) — flavors are the
+# spec 28 §8 implementation axis (temurin / graalvm), platforms
 # aarch64-macos + x86_64-windows-ucrt + x86_64-linux-gnu.
 #
 # kind: runtime (spec 28/29): each leg ships the PAIR — the wrapper exe
@@ -41,13 +42,18 @@ permissions:
 
 jobs:
   build:
-    name: ${{ matrix.platform.triplet }}
+    name: ${{ matrix.flavor }} / ${{ matrix.platform.triplet }}
     runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
       matrix:
-        # Identity only (which leg, which runner, which archiver). All
-        # versions/digests flow from recipe.yml via tools/pins.rb.
+        # Identity only (which leg, which runner, which archiver, which
+        # flavor). All versions/digests flow from recipe.yml via
+        # tools/pins.rb. flavor is the spec 28 §8 implementation axis —
+        # temurin (default) and graalvm publish side by side onto the
+        # same tag (the tag IS the tebako product line; the flavors'
+        # stems differ by language version).
+        flavor: [temurin, graalvm]
         platform:
           - triplet: aarch64-macos
             asset_platform: macos-arm64
@@ -89,7 +95,7 @@ jobs:
       # POSIX. (windows: the runner's hosted Ruby serves Git-bash steps.)
       - name: Read the toolchain pins (recipe.yml is the SSOT)
         shell: bash
-        run: ruby tools/pins.rb "${{ matrix.platform.asset_platform }}" --env >> "$GITHUB_ENV"
+        run: ruby tools/pins.rb "${{ matrix.platform.asset_platform }}" "${{ matrix.flavor }}" --env >> "$GITHUB_ENV"
 
       # The imager (tfs mkimage/extract) is the product repo's own
       # published binary — releases are the interface; the feedstock
@@ -157,6 +163,7 @@ jobs:
           EXE_SUFFIX: ${{ matrix.platform.exe_suffix }}
           TAR: ${{ matrix.platform.tar }}
           TFS_CLI: .packager/tfs${{ matrix.platform.exe_suffix }}
+          FLAVOR: ${{ matrix.flavor }}
         # WRAPPER_BIN (the fetch step) and PRELOAD_SHIM (pins.rb, POSIX
         # only) flow through $GITHUB_ENV — process env, not the static
         # env: context. The windows leg runs a closed PATH: the runner's
@@ -172,8 +179,8 @@ jobs:
       - name: Upload payload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: payload-${{ matrix.platform.triplet }}
-          path: out/${{ matrix.platform.triplet }}/
+          name: payload-${{ matrix.flavor }}-${{ matrix.platform.triplet }}
+          path: out/${{ matrix.flavor }}-${{ matrix.platform.triplet }}/
           retention-days: 7
 
   release:
@@ -210,14 +217,16 @@ jobs:
       # manifests/registry.yaml instead (the CLI never learns a runtime
       # verb until the product ships one).
       - name: Read the toolchain pins (recipe.yml is the SSOT)
-        run: ruby tools/pins.rb macos-arm64 --env >> "$GITHUB_ENV"
+        run: |
+          ruby tools/pins.rb macos-arm64 temurin --env >> "$GITHUB_ENV"
+          ruby tools/pins.rb macos-arm64 graalvm --env | grep -E '^(PKG_VERSION|RUNTIME_STEM_BASE)=' | sed 's/^/GRAALVM_/' >> "$GITHUB_ENV"
       - name: Create the release + upload the runtime pairs
         shell: bash
         run: |
           set -euo pipefail
           tag="${{ github.ref_name }}"
           gh release create "$tag" --repo tebako-packages/openjdk \
-            --title "$tag — tebako-runtime openjdk (Temurin JRE $PKG_VERSION)" \
+            --title "$tag — tebako-runtime openjdk (Temurin JRE $PKG_VERSION + GraalVM CE JDK $GRAALVM_PKG_VERSION)" \
             --notes "tebako java runtime pair (wrapper exe + env image) per platform; manifest.json is the release index, SHA256SUMS.txt the trust anchor." \
             || gh release view "$tag" --repo tebako-packages/openjdk > /dev/null
           for shard in out/*/tebako-runtime-*.manifest.json; do
@@ -225,7 +234,7 @@ jobs:
             stem="$(basename "$shard" .manifest.json)"
             # "$stem"* = the exe (+ .exe on windows), the .tfs, both
             # .sha256 sidecars, the shard — never the sibling
-            # payload-<triplet>.yaml.
+            # payload-<flavor>-<triplet>.yaml.
             gh release upload --clobber "$tag" --repo tebako-packages/openjdk "$dir/$stem"*
           done
       - name: Derive + upload the monoliths (manifest.json + SHA256SUMS.txt)
@@ -247,13 +256,24 @@ jobs:
           set -euo pipefail
           tag="${{ github.ref_name }}"
           sha_for() { cut -d' ' -f1 "out/$1/$2.tfs.sha256"; }
+          # Both flavors ride the same tag: the temurin template renders
+          # the document, the graalvm template appends its entry (the
+          # flavors' stems differ by language version, so no key/asset
+          # collision).
           sed -e "s|@@VERSION@@|$PKG_VERSION|g" \
               -e "s|@@STEM@@|$RUNTIME_STEM_BASE|g" \
               -e "s|@@TAG@@|$tag|g" \
-              -e "s|@@SHA256_MACOS@@|$(sha_for aarch64-macos "$RUNTIME_STEM_BASE-macos-arm64")|g" \
-              -e "s|@@SHA256_LINUX@@|$(sha_for x86_64-linux-gnu "$RUNTIME_STEM_BASE-linux-gnu-x86_64")|g" \
-              -e "s|@@SHA256_WINDOWS@@|$(sha_for x86_64-windows-ucrt "$RUNTIME_STEM_BASE-windows-ucrt64")|g" \
+              -e "s|@@SHA256_MACOS@@|$(sha_for temurin-aarch64-macos "$RUNTIME_STEM_BASE-macos-arm64")|g" \
+              -e "s|@@SHA256_LINUX@@|$(sha_for temurin-x86_64-linux-gnu "$RUNTIME_STEM_BASE-linux-gnu-x86_64")|g" \
+              -e "s|@@SHA256_WINDOWS@@|$(sha_for temurin-x86_64-windows-ucrt "$RUNTIME_STEM_BASE-windows-ucrt64")|g" \
               manifests/registry.yaml > tpkg-registry.yaml
+          sed -e "s|@@G_VERSION@@|$GRAALVM_PKG_VERSION|g" \
+              -e "s|@@G_STEM@@|$GRAALVM_RUNTIME_STEM_BASE|g" \
+              -e "s|@@TAG@@|$tag|g" \
+              -e "s|@@G_SHA256_MACOS@@|$(sha_for graalvm-aarch64-macos "$GRAALVM_RUNTIME_STEM_BASE-macos-arm64")|g" \
+              -e "s|@@G_SHA256_LINUX@@|$(sha_for graalvm-x86_64-linux-gnu "$GRAALVM_RUNTIME_STEM_BASE-linux-gnu-x86_64")|g" \
+              -e "s|@@G_SHA256_WINDOWS@@|$(sha_for graalvm-x86_64-windows-ucrt "$GRAALVM_RUNTIME_STEM_BASE-windows-ucrt64")|g" \
+              manifests/registry-graalvm.yaml >> tpkg-registry.yaml
       # main is branch-protected (and the GitHub-Actions bypass is not
       # available on this plan): the registry lands by bot PR + auto-merge,
       # never by direct push. Idempotent across re-runs of the same tag.
