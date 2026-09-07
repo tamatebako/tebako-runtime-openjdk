@@ -16,16 +16,16 @@ payloads:
     implementation: temurin
     platforms:
       aarch64-macos:
-        artifact: tebako-runtime-2.4.0-21.0.12-macos-arm64.tfs
-        sha256: 'a023875f743e4da10f6a13c3b0791afefb64030b9a6422939a7ad5711bbab700'
+        artifact: tebako-runtime-2.5.0-21.0.12-macos-arm64.tfs
+        sha256: 'd4e30fafb532ee3f9192a8bc711e2b05d463bc3b2eb2be2b90393a6910b61882'
       x86_64-linux-gnu:
-        artifact: tebako-runtime-2.4.0-21.0.12-linux-gnu-x86_64.tfs
-        sha256: 'f4942a82d8ff0bd570d7eb6e8f8635870447484af4cb2a4c794cde6ae97cd011'
+        artifact: tebako-runtime-2.5.0-21.0.12-linux-gnu-x86_64.tfs
+        sha256: '70fbf7a1aa7b32d0a208f451472ce72737cf535d8949e83eb42862e59c001c35'
       x86_64-windows-ucrt:
-        artifact: tebako-runtime-2.4.0-21.0.12-windows-ucrt64.tfs
-        sha256: '0773cce4c45ebe0969736e6a39ac90e12944f91bac0871e7e6bf1368b5642104'
+        artifact: tebako-runtime-2.5.0-21.0.12-windows-ucrt64.tfs
+        sha256: '0ff0b0b75cf6a52ef11b89424eb98554f8ae87474cfc9894235b4d401770d5af'
     release:
-      ref: tfs:github:tebako-packages/openjdk:v2.4.1
+      ref: tfs:github:tebako-packages/openjdk:v2.5.0
   default: '21.0.12'
 # Registry template FRAGMENT for the openjdk-graalvm RUNTIME entry — the
 # spec 28 §8 implementation axis's graalvm flavor (GraalVM Community,
@@ -42,14 +42,14 @@ payloads:
     implementation: graalvm
     platforms:
       aarch64-macos:
-        artifact: tebako-runtime-2.4.0-25.0.4.1-macos-arm64.tfs
-        sha256: 'f7ac1b493ca55c43e9fbe398d1351bf619f064c6b6dd8e936323e3d7ba3533cf'
+        artifact: tebako-runtime-2.5.0-25.0.4.1-macos-arm64.tfs
+        sha256: '9df49bfb23dc634be9b673906a2374cada46b54a46ff11b70923788bbb431b50'
       x86_64-linux-gnu:
-        artifact: tebako-runtime-2.4.0-25.0.4.1-linux-gnu-x86_64.tfs
-        sha256: 'f85ecf63607fb10a6516bf64090615e07e95d0087bfb8f845367266a875b6cc3'
+        artifact: tebako-runtime-2.5.0-25.0.4.1-linux-gnu-x86_64.tfs
+        sha256: '7131b2ac273373318bacff3c2d04b4278f0889c239926a3b98034c78b1ceac40'
       x86_64-windows-ucrt:
-        artifact: tebako-runtime-2.4.0-25.0.4.1-windows-ucrt64.tfs
-        sha256: '7738cd3d5159cad4a4f295099ecf8f0bb64528a8d5bc2c1d788b6dcdf3c5454c'
+        artifact: tebako-runtime-2.5.0-25.0.4.1-windows-ucrt64.tfs
+        sha256: '47bfae0014181d327ce6eedd3c02a72c3fe929c3e2826c541dd47fdceb352ba4'
     release:
-      ref: tfs:github:tebako-packages/openjdk:v2.4.1
+      ref: tfs:github:tebako-packages/openjdk:v2.5.0
   default: '25.0.4.1'
