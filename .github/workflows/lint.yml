@@ -1,0 +1,78 @@
+# The lint gate: everything that can be proven WITHOUT real builds —
+# the recipe + manifest templates + registry parse, every authored ruby
+# file ruby -c clean, every authored shell tool bash -n clean, and the
+# spec suite green (spec/sign_release_spec.rb, the spec 09 sign pass's
+# coverage). The build legs' own gates (read-back, the boot/wrapper
+# smokes) live in build-payload.yml.
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One run per branch/PR-head at a time: pushing to a branch with an open
+# PR would otherwise run every job twice (push + pull_request events);
+# a new run cancels the stale one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: parse + ruby -c + bash -n + rspec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      # Every authored ruby file parses — the extensionless executables
+      # under tools/ included (a syntax error there otherwise surfaces
+      # only at a build leg's expense).
+      - name: ruby -c every authored ruby file
+        run: |
+          set -euo pipefail
+          {
+            git ls-files -- '*.rb'
+            git ls-files -- tools scripts | while read -r f; do
+              head -n1 "$f" | grep -q '^#!.*ruby' && printf '%s\n' "$f" || true
+            done
+          } | sort -u | while read -r f; do
+            ruby -c "$f" >/dev/null || { echo "::error::ruby -c failed: $f"; exit 1; }
+            echo "ruby -c ok: $f"
+          done
+
+      # Same for the shell tools (tools/build is the repack pipeline
+      # itself; tools/windows-sign-gate.sh arms the spec 34 sign block).
+      - name: bash -n every authored shell file
+        run: |
+          set -euo pipefail
+          git ls-files -- tools scripts | while read -r f; do
+            head -n1 "$f" | grep -q '^#!.*bash' && printf '%s\n' "$f" || true
+          done | sort -u | while read -r f; do
+            bash -n "$f" || { echo "::error::bash -n failed: $f"; exit 1; }
+            echo "bash -n ok: $f"
+          done
+
+      # The spec suite (spec/): proves without real builds, exactly this
+      # gate's charter.
+      - name: rspec
+        run: bundle exec rspec
+
+      # manifests/*.yaml are sed TEMPLATES (@@TOKEN@@ bodies, rendered by
+      # tools/build + the publish job) — not standalone-parseable by
+      # design; the build legs' read-back gate validates them post-render.
+      - name: parse every authored YAML
+        run: |
+          ruby -ryaml -e '
+            (Dir[".github/workflows/*.{yml,yaml}"] + %w[recipe.yml tpkg-registry.yaml]).each do |f|
+              YAML.load_file(f)
+              puts "parsed #{f}"
+            end
+          '

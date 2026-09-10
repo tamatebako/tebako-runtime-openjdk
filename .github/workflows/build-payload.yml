@@ -12,6 +12,13 @@ name: build-payload
 # by bot PR. `tebako publish` is NOT used: the CLI refuses kind: runtime
 # (runtimes publish through the runtime release flow).
 #
+# TRUST PLANE (both passes gate-off byte-identical — spec 00 invariant
+# 7): the windows legs Authenticode-sign the fetched wrapper exe IN-LEG
+# before tools/build pairs+hashes it (spec 34 §8.2 — sign-then-hash by
+# construction, never a re-hash), and after the publish job's uploads all
+# land the sign job OpenPGP-signs every release asset (spec 09 §2,
+# scripts/sign_release.rb).
+#
 # PIN DISCIPLINE (the owner's rule): this workflow carries NO version or
 # digest literals. recipe.yml is the SSOT — the `tools:` block pins the
 # tfs CLI + the link-unit tarball (release + per-platform sha256), the
@@ -44,6 +51,25 @@ jobs:
   build:
     name: ${{ matrix.flavor }} / ${{ matrix.platform.triplet }}
     runs-on: ${{ matrix.platform.os }}
+    # Spec 34 §3/§8.2 (the mirror of tebako-runtime-ruby#155's
+    # _build-platform.yml): a job-level permissions block REPLACES the
+    # workflow-level grant, so it is restated here — plus id-token:write,
+    # the OIDC boundary: the Entra federated credential issues Azure
+    # tokens only to a job of this repo running in the windows-signing
+    # environment. The signing steps below are gated on
+    # WINDOWS_SIGNING_ENABLED: unsigned runs carry the environment but
+    # never request a token.
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    # Spec 34's attestation boundary (see the id-token note above). The
+    # build job is shared by every platform's legs — only the windows
+    # legs ever arm the signing chain, but ALL legs carry the
+    # environment: it must NEVER gain required reviewers (that would gate
+    # every platform's build on an approval); protection rules stay
+    # empty.
+    environment: windows-signing
     strategy:
       fail-fast: false
       matrix:
@@ -125,19 +151,147 @@ jobs:
       # The wrapper exe — the runtime pair's process entry point (spec
       # 29). Same releases-are-the-interface rule as the imager; ships
       # since tebako v2.1.0 (the recipe's runtime.wrapper_tebako pin
-      # names the line).
+      # names the line). It stages into its OWN .packager/wrapper/ dir so
+      # the spec 34 sign block below can point the artifact-signing
+      # action at a folder holding ONLY shippable PEs — .packager itself
+      # also carries the tfs imager exe (a build tool, never signed).
       - name: Fetch the wrapper (pinned by recipe.yml)
         shell: bash
         env:
-          WRAPPER_BIN: .packager/tebako-runtime-launcher${{ matrix.platform.exe_suffix }}
+          WRAPPER_BIN: .packager/wrapper/tebako-runtime-launcher${{ matrix.platform.exe_suffix }}
         run: |
           set -euo pipefail
-          mkdir -p .packager
+          mkdir -p .packager/wrapper
           base="https://github.com/tamatebako/tebako/releases/download/$WRAPPER_RELEASE"
           curl -sL --fail -o "$WRAPPER_BIN" "$base/$WRAPPER_ASSET"
           echo "$WRAPPER_SHA256  $WRAPPER_BIN" | { sha256sum -c - 2>/dev/null || shasum -a 256 -c -; }
           chmod +x "$WRAPPER_BIN"
           echo "WRAPPER_BIN=$WRAPPER_BIN" >> "$GITHUB_ENV"
+
+      # Spec 34 §8.2 — the Windows Authenticode leg (the mirror of
+      # tebako-runtime-ruby#155, itself tamatebako/tebako PR #566): when
+      # the repo variable WINDOWS_SIGNING_ENABLED=true, the fetched
+      # wrapper exe is Azure Trusted Signed IN PLACE here — after its
+      # pin-verified download, BEFORE tools/build pairs it into out/.
+      # Sign-then-hash (spec 34 §1.3) needs NO re-hash step in this repo:
+      # tools/build computes the wrapper's .sha256 sidecar + the release
+      # shard's digest AFTER this block, so every published hash anchors
+      # the SIGNED bytes by construction, and tools/build's wrapper smoke
+      # exercises exactly the shipped bytes. Gate off: every step below
+      # skips and the leg ships unsigned, byte-identically to today
+      # (spec 00 invariant 7 — §7.4 gate-off parity).
+      - name: Arm check — Windows signing (spec 34 §4)
+        if: matrix.platform.triplet == 'x86_64-windows-ucrt'
+        id: signgate
+        shell: bash
+        env:
+          WINDOWS_SIGNING_ENABLED: ${{ vars.WINDOWS_SIGNING_ENABLED }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_ENDPOINT: ${{ vars.AZURE_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_SIGNING_ACCOUNT_NAME }}
+          AZURE_SIGNING_CERT_PROFILE: ${{ vars.AZURE_SIGNING_CERT_PROFILE }}
+        run: bash tools/windows-sign-gate.sh
+
+      # OIDC workload-identity federation (spec 34 §3): no stored client
+      # secret anywhere; the federated credential is scoped to this repo
+      # × the windows-signing environment this job runs in.
+      - name: Azure login (OIDC, spec 34 §8.2)
+        if: steps.signgate.outputs.armed == 'true'
+        uses: azure/login@v2 # TODO(sha-pin): pin on first armed run
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Signs the wrapper exe IN PLACE. The account input is
+      # `signing-account-name` — spec 34 §5's draft
+      # `trusted-signing-account-name` is the deprecated alias at this
+      # action's @v1 (the PR #566 deviation, verified against the action's
+      # action.yml); do not "upgrade" the action — @v2 dropped it.
+      - name: Sign the wrapper exe (spec 34 §8.2)
+        if: steps.signgate.outputs.armed == 'true'
+        uses: Azure/artifact-signing-action@v1 # TODO(sha-pin): pin on first armed run
+        with:
+          endpoint: ${{ vars.AZURE_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_CERT_PROFILE }}
+          files-folder: .packager/wrapper
+          # The enumeration gate (§7.3): everything PE in the wrapper dir
+          # signs by EXTENSION, never a name list — a new PE artifact (a
+          # shipped .dll) must not ship unsigned by omission. The release
+          # ships exactly one PE today: the wrapper exe (the env image's
+          # contents are inside the .tfs, not PE files at release level).
+          files-folder-filter: exe,dll
+          file-digest: SHA256
+          # §1.4: the RFC 3161 countersignature is mandatory (the action's
+          # default timestamp server; set explicitly per spec).
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: tebako openjdk runtime wrapper (tamatebako)
+
+      - name: Verify the signatures (spec 34 §7.1/§7.2)
+        if: steps.signgate.outputs.armed == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # §7.3: enumerate the signed PE set by EXTENSION, never a name
+          # list — the wrapper exe (plus any shipped .dll, none today).
+          $exes = @(Get-ChildItem -Path '.packager/wrapper' -Filter '*.exe' -File)
+          $dlls = @(Get-ChildItem -Path '.packager/wrapper' -Filter '*.dll' -File)
+          if ($exes.Count -eq 0) {
+            Write-Host "::error::spec 34 §7.3: no .exe artifact under .packager/wrapper — the wrapper exe escaped signing"
+            exit 1
+          }
+          $pes = @($exes) + @($dlls)
+          # signtool.exe: the action's cached BuildTools first (the
+          # TrustedSigning module still owns that directory name at
+          # action @v1; the ArtifactSigning spelling is kept as a
+          # forward-compat fallback), then the runner image's Windows
+          # Kits; newest path first.
+          $signtool = @(
+            Get-ChildItem -Path "$env:LOCALAPPDATA\TrustedSigning\Microsoft.Windows.SDK.BuildTools" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue
+            Get-ChildItem -Path "$env:LOCALAPPDATA\ArtifactSigning\Microsoft.Windows.SDK.BuildTools" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue
+            Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue
+          ) | Where-Object { $_.FullName -match '\\x64\\' } |
+              Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) {
+            Write-Host "::error::spec 34 §7.1: signtool.exe not found (action BuildTools cache and Windows Kits both empty)"
+            exit 1
+          }
+          Write-Host "signtool: $($signtool.FullName)"
+          $failed = $false
+          foreach ($pe in $pes) {
+            Write-Host "== signtool verify /pa /v $($pe.Name)"
+            $out = & $signtool.FullName verify /pa /v $pe.FullName 2>&1 | Out-String
+            Write-Host $out
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::spec 34 §7.1: signtool verify /pa FAILED for $($pe.Name)"
+              $failed = $true
+              continue
+            }
+            # §7.2/§1.4: the RFC 3161 countersignature is mandatory — an
+            # untimestamped signature fails the leg, never a warning.
+            if ($out -notmatch 'signature is timestamped' -and $out -notmatch 'RFC ?3161') {
+              Write-Host "::error::spec 34 §7.2: no RFC 3161 timestamp countersignature in signtool output for $($pe.Name)"
+              $failed = $true
+              continue
+            }
+            $sig = Get-AuthenticodeSignature $pe.FullName
+            if ($sig.Status -ne 'Valid') {
+              Write-Host "::error::spec 34 §7.1: Get-AuthenticodeSignature status '$($sig.Status)' (not Valid) for $($pe.Name)"
+              $failed = $true
+              continue
+            }
+            if ($null -eq $sig.TimeStamperCertificate) {
+              Write-Host "::error::spec 34 §7.2: Get-AuthenticodeSignature reports no TimeStamperCertificate for $($pe.Name)"
+              $failed = $true
+              continue
+            }
+            Write-Host "signed+timestamped: $($pe.Name) — $($sig.SignerCertificate.Subject)"
+          }
+          if ($failed) { exit 1 }
 
       # The preload shim (POSIX legs only): the link-unit tarball carries
       # libtfs_preload for the layout's preload_shim grant — the jail's
@@ -300,3 +454,51 @@ jobs:
               --body "Automated registry entry for ${{ github.ref_name }} (the build-payload publish job; main is protected, so the registry lands by PR)."
           fi
           gh pr merge --auto --squash "$branch" || gh pr merge --squash "$branch"
+
+  # Spec 09 §2 — the OpenPGP release sign pass (scripts/sign_release.rb,
+  # the tebako-runtime-python#12 port — itself rt-ruby#154 + the #156
+  # base64-decode fix): after the publish job's uploads have ALL landed
+  # (never a partial release), every pair artifact (wrapper exes + .tfs
+  # env images) plus the two monoliths (SHA256SUMS.txt, manifest.json)
+  # ships a detached .asc from the tamatebako release signing subkey,
+  # made by the LATEST tamatebako/tebako release's sha256-verified
+  # tebako-pkg. A separate job, on ubuntu, because tebako-pkg ships as
+  # linux-gnu-x86_64 and the publish job is macOS. The gate lives INSIDE
+  # the script: TEBAKO_RELEASE_SIGNING_ENABLED=true arms the pass; armed
+  # + an empty TEBAKO_RELEASE_SIGNING_KEY secret is a fast named failure;
+  # disarmed exits 0 and the release ships unsigned (unsigned stays
+  # first-class — spec 09 §3).
+  sign:
+    name: Sign the release assets (spec 09)
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    env:
+      # The runner token suffices (contents: write from the workflow
+      # grant): the sign job reads + uploads THIS repo's release assets
+      # and downloads the tebako product's public release assets.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # This run's fresh pair bytes, merged flat: signing prefers them
+      # over a re-download (only the derived monoliths — built in the
+      # publish job, never in the artifacts — come back down from the
+      # release).
+      - name: Collect the leg payloads
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: payload-*
+          path: release-assets
+          merge-multiple: true
+      - name: Setup Ruby gems
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      # The tag IS the tebako product line (v<line> — the trr
+      # convention); the script wants the bare version.
+      - name: Sign the release assets (spec 09)
+        env:
+          TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
+          TEBAKO_RELEASE_SIGNING_KEY: ${{ secrets.TEBAKO_RELEASE_SIGNING_KEY }}
+        run: TEBAKO_VERSION="${GITHUB_REF_NAME#v}" ./scripts/sign_release.rb
