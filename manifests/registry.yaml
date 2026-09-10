@@ -25,5 +25,5 @@ payloads:
         artifact: @@STEM@@-windows-ucrt64.tfs
         sha256: '@@SHA256_WINDOWS@@'
     release:
-      ref: tfs:github:tebako-packages/openjdk:@@TAG@@
+      ref: tfs:github:tamatebako/openjdk:@@TAG@@
   default: '@@VERSION@@'

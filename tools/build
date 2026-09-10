@@ -364,7 +364,7 @@ cat > "$OUT/$STEM.manifest.json" <<EOF
   "mount_root": "$MOUNT_ROOT",
   "image_layout": 1,
   "built_from": {
-    "release": "tebako-packages/openjdk@$RELEASE_REF",
+    "release": "tamatebako/openjdk@$RELEASE_REF",
     "sources": [
       {"name": "$ARCHIVE_NAME", "sha256": "$SHA256"}
     ]

@@ -225,17 +225,17 @@ jobs:
         run: |
           set -euo pipefail
           tag="${{ github.ref_name }}"
-          gh release create "$tag" --repo tebako-packages/openjdk \
+          gh release create "$tag" --repo tamatebako/openjdk \
             --title "$tag — tebako-runtime openjdk (Temurin JRE $PKG_VERSION + GraalVM CE JDK $GRAALVM_PKG_VERSION)" \
             --notes "tebako java runtime pair (wrapper exe + env image) per platform; manifest.json is the release index, SHA256SUMS.txt the trust anchor." \
-            || gh release view "$tag" --repo tebako-packages/openjdk > /dev/null
+            || gh release view "$tag" --repo tamatebako/openjdk > /dev/null
           for shard in out/*/tebako-runtime-*.manifest.json; do
             dir="$(dirname "$shard")"
             stem="$(basename "$shard" .manifest.json)"
             # "$stem"* = the exe (+ .exe on windows), the .tfs, both
             # .sha256 sidecars, the shard — never the sibling
             # payload-<flavor>-<triplet>.yaml.
-            gh release upload --clobber "$tag" --repo tebako-packages/openjdk "$dir/$stem"*
+            gh release upload --clobber "$tag" --repo tamatebako/openjdk "$dir/$stem"*
           done
       - name: Derive + upload the monoliths (manifest.json + SHA256SUMS.txt)
         shell: bash
@@ -245,7 +245,7 @@ jobs:
           ruby -rjson -e 'puts JSON.pretty_generate(ARGV.sort.map { |f| JSON.parse(File.read(f)) })' \
             out/*/tebako-runtime-*.manifest.json > manifest.json
           cat out/*/tebako-runtime-*.sha256 > SHA256SUMS.txt
-          gh release upload --clobber "$tag" --repo tebako-packages/openjdk manifest.json SHA256SUMS.txt
+          gh release upload --clobber "$tag" --repo tamatebako/openjdk manifest.json SHA256SUMS.txt
       # The registry mirrors resolution fields only (L3): the env image
       # is the named artifact per platform; kind: runtime carries NO
       # entrypoints key (the validator: only apps and toolkits declare
