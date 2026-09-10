@@ -22,5 +22,5 @@
         artifact: @@G_STEM@@-windows-ucrt64.tfs
         sha256: '@@G_SHA256_WINDOWS@@'
     release:
-      ref: tfs:github:tamatebako/openjdk:@@TAG@@
+      ref: tfs:github:tamatebako/tebako-runtime-openjdk:@@TAG@@
   default: '@@G_VERSION@@'

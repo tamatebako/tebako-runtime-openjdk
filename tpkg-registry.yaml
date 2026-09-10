@@ -25,7 +25,7 @@ payloads:
         artifact: tebako-runtime-2.5.0-21.0.12-windows-ucrt64.tfs
         sha256: '0ff0b0b75cf6a52ef11b89424eb98554f8ae87474cfc9894235b4d401770d5af'
     release:
-      ref: tfs:github:tamatebako/openjdk:v2.5.0
+      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.5.0
   default: '21.0.12'
 # Registry template FRAGMENT for the openjdk-graalvm RUNTIME entry — the
 # spec 28 §8 implementation axis's graalvm flavor (GraalVM Community,
@@ -51,5 +51,5 @@ payloads:
         artifact: tebako-runtime-2.5.0-25.0.4.1-windows-ucrt64.tfs
         sha256: '47bfae0014181d327ce6eedd3c02a72c3fe929c3e2826c541dd47fdceb352ba4'
     release:
-      ref: tfs:github:tamatebako/openjdk:v2.5.0
+      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.5.0
   default: '25.0.4.1'
