@@ -1,1 +1,5 @@
 out/
+
+# Ruby tooling (the factory convention: the lockfile floats)
+Gemfile.lock
+.rspec_status
