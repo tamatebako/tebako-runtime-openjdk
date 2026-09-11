@@ -4,20 +4,21 @@
 # itself tamatebako/tebako PR #566's). The repo variable
 # WINDOWS_SIGNING_ENABLED=true arms Azure Trusted Signing (Authenticode)
 # for the leg's shipped PE artifact (the wrapper exe —
-# tebako-runtime-launcher — staged at .packager/wrapper/; the release
+# tebako-runtime-launcher — fetch-staged at .packager/wrapper/ and copied
+# to sign-staging/ for the extension-enumerated signing pass; the release
 # ships no DLL today, and the windows env image omits the preload shim);
 # anything else ships unsigned BY DESIGN (spec 00 invariant 7: unsigned
 # stays first-class) and this step is a loud notice. Armed but a
 # secret/variable unresolved is a FAST named failure BEFORE any signing
 # call — never a partial release (spec 34 §7.5).
 #
-# Emits armed=<true|false> to GITHUB_OUTPUT; the leg's azure/login,
-# artifact-signing and signtool-verify steps all gate on it. No re-hash
-# step exists here: the sign block runs BEFORE tools/build pairs the
-# wrapper into out/ and computes the .sha256 sidecar + the release
-# shard's digest, so every published hash anchors the SIGNED bytes by
-# construction (spec 34 §1.3 sign-then-hash; the wrapper smoke inside
-# tools/build then exercises exactly the shipped bytes).
+# Emits armed=<true|false> to GITHUB_OUTPUT; the leg's PE-staging,
+# azure/login, artifact-signing and signtool-verify steps all gate on
+# it. No re-hash step exists here: the sign block runs BEFORE tools/build
+# pairs the wrapper into out/ and computes the .sha256 sidecar + the
+# release shard's digest, so every published hash anchors the SIGNED
+# bytes by construction (spec 34 §1.3 sign-then-hash; the wrapper smoke
+# inside tools/build then exercises exactly the shipped bytes).
 #
 # Required env when armed (spec 34 §3): AZURE_CLIENT_ID,
 # AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (org secrets — the OIDC
