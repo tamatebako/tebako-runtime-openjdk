@@ -17,15 +17,15 @@ payloads:
     platforms:
       aarch64-macos:
         artifact: tebako-runtime-2.5.0-21.0.12-macos-arm64.tfs
-        sha256: 'd4e30fafb532ee3f9192a8bc711e2b05d463bc3b2eb2be2b90393a6910b61882'
+        sha256: 'df0172e2662bfb08bf94ebf9a90d37090145ddc9e2ba252aab496d93df04ca82'
       x86_64-linux-gnu:
         artifact: tebako-runtime-2.5.0-21.0.12-linux-gnu-x86_64.tfs
-        sha256: '70fbf7a1aa7b32d0a208f451472ce72737cf535d8949e83eb42862e59c001c35'
+        sha256: 'c5d90186781c83b845126afe286ad92f66c916e6d927c69f96ccde4750ec9316'
       x86_64-windows-ucrt:
         artifact: tebako-runtime-2.5.0-21.0.12-windows-ucrt64.tfs
-        sha256: '0ff0b0b75cf6a52ef11b89424eb98554f8ae87474cfc9894235b4d401770d5af'
+        sha256: '0c8242a8081f1453253fec769bfb725e0045529da6df6550a8d4517b5ad47bcf'
     release:
-      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.5.0
+      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.5.1
   default: '21.0.12'
 # Registry template FRAGMENT for the openjdk-graalvm RUNTIME entry — the
 # spec 28 §8 implementation axis's graalvm flavor (GraalVM Community,
@@ -43,13 +43,13 @@ payloads:
     platforms:
       aarch64-macos:
         artifact: tebako-runtime-2.5.0-25.0.4.1-macos-arm64.tfs
-        sha256: '9df49bfb23dc634be9b673906a2374cada46b54a46ff11b70923788bbb431b50'
+        sha256: '5584993a9c0d94bccf56a96f29d4e77e2db4c11b0cb3323700c00a773e393556'
       x86_64-linux-gnu:
         artifact: tebako-runtime-2.5.0-25.0.4.1-linux-gnu-x86_64.tfs
-        sha256: '7131b2ac273373318bacff3c2d04b4278f0889c239926a3b98034c78b1ceac40'
+        sha256: '7a01dcb0a6585608a8e73c62cea07c03d408115569b7f3b6012c4b9f50659041'
       x86_64-windows-ucrt:
         artifact: tebako-runtime-2.5.0-25.0.4.1-windows-ucrt64.tfs
-        sha256: '47bfae0014181d327ce6eedd3c02a72c3fe929c3e2826c541dd47fdceb352ba4'
+        sha256: '48338303aa624d8ec07d0e1574a784e3e73eb3488804e6c05fd59f6931140bf1'
     release:
-      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.5.0
+      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.5.1
   default: '25.0.4.1'
