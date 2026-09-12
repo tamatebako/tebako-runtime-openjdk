@@ -423,6 +423,20 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Guard — the tag IS the tebako product line
+        # The composed-name fetch path ({base}/v<line>/<asset>, spec 13
+        # §2a) resolves release AND asset stem from the one pin, so a tag
+        # that disagrees with recipe.yml's runtime.wrapper_tebako
+        # publishes a release no consumer can fetch (v2.5.1's 2.5.0-named
+        # assets 404'd every composed fetch — the metanorma 1.16.9-11
+        # publish died on exactly that). Fail before any mutation.
+        run: |
+          set -euo pipefail
+          eval "$(ruby tools/pins.rb macos-arm64)"
+          if [ "$GITHUB_REF_NAME" != "$WRAPPER_RELEASE" ]; then
+            echo "::error::tag $GITHUB_REF_NAME ≠ runtime.wrapper_tebako ($WRAPPER_RELEASE) — the tag IS the tebako product line; reline recipe.yml or retag"
+            exit 1
+          fi
       - name: Collect payloads (all legs)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
