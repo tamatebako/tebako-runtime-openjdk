@@ -296,8 +296,17 @@ RSpec.describe ReleaseSigner do
 
   it "names a detected host id when the tool asset is missing (no TEBAKO_PKG_HOST_ID)" do
     new = Time.utc(2026, 9, 9)
+    # A tool release serving only a platform detection can never produce:
+    # whatever this runner detects, the lookup misses — deterministic on
+    # every host (a linux tool asset would PASS on a linux runner).
+    odd_tool_assets = [
+      SignSpecAsset.new(921, "tebako-pkg-2.7.0-plan9-arm64", nil, new, "u/t9"),
+      SignSpecAsset.new(922, "tebako-pkg-2.7.0-plan9-arm64.sha256", nil, new, "u/t9.sha")
+    ]
     env = enabled_env.reject { |k, _| k == "TEBAKO_PKG_HOST_ID" }
-    signer, = signer_for([asset(1, "pkg-a", new)], env: env)
+    client = FakeSignClient.new(release: release, assets: [asset(1, "pkg-a", new)],
+                                tool_release: tool_release, tool_assets: odd_tool_assets)
+    signer = ReleaseSigner.new(client: client, executor: FakeSignExecutor.new, env: env)
     expect { signer.sign_release }
       .to raise_error(ReleaseSigner::SigningGateError, /no tebako-pkg \S+ asset on v2\.7\.0/)
   end
