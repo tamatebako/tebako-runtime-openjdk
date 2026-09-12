@@ -350,6 +350,13 @@ printf '%s  %s\n' "$sha" "$STEM.tfs" > "$IMG.sha256"
 printf '%s  %s\n' "$exe_sha" "$STEM$EXE_SUFFIX" > "$EXE_OUT.sha256"
 ARCHIVE_NAME="$(basename "$URL")"
 RELEASE_REF="${GITHUB_REF_NAME:-local}"
+# Display metadata (the versions catalog's chip axis), never a selector axis:
+# the GraalVM edition advertises itself; temurin JITs like every JVM — noise.
+if [ "$IMPLEMENTATION" = "graalvm" ]; then
+  CAPABILITIES='["graal"]'
+else
+  CAPABILITIES='[]'
+fi
 cat > "$OUT/$STEM.manifest.json" <<EOF
 {
   "tebako_version": "$WRAPPER_TEBAKO",
@@ -357,6 +364,7 @@ cat > "$OUT/$STEM.manifest.json" <<EOF
   "contract_version": 2,
   "java_version": "$VERSION",
   "implementation": "$IMPLEMENTATION",
+  "capabilities": $CAPABILITIES,
   "platform": "$ASSET_PLATFORM",
   "filename": "$STEM$EXE_SUFFIX",
   "sha256": "$exe_sha",
