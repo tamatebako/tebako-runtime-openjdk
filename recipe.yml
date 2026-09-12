@@ -145,15 +145,22 @@ runtime:
   # '/app/bin/hello' not found at '/__runners__/truffleruby/app/bin/hello'"
   # — green only once the owner exe was the 2.5.0 launcher). BOTH flavors
   # reline: graalvm is truffleruby-jvm's owner edge, temurin is jruby's.
-  wrapper_tebako: "2.5.0"
+  # v2.7.0 (2026-09-12): REQUIRED reline. The v2.5.1 tag re-published the
+  # 2.5.0 line with signing but left wrapper_tebako at 2.5.0 — breaking
+  # this repo's own rule that the tag IS the line: composed-name fetches
+  # (the spawned-runtime {base}/v<line>/<asset> path) 404'd on
+  # tebako-runtime-2.5.1-* (metanorma 1.16.9-11 publish, run 34683540428).
+  # The line moves to the current signed product release and the publish
+  # gains a tag==line guard so the mismatch can never publish again.
+  wrapper_tebako: "2.7.0"
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
-  # download would be a supply-chain hole). Digests are the v2.5.0
-  # release's monolith SHA256SUMS entries, fetched 2026-09-07.
+  # download would be a supply-chain hole). Digests are the v2.7.0
+  # release's monolith SHA256SUMS entries, fetched 2026-09-12.
   wrapper_sha256:
-    macos-arm64: "b4725da9e99425acbda3d189738f78773b7658d63c015cf03ef4e2f035e94d28"
-    linux-gnu-x86_64: "02272c8ece40c5cfadc9cb77330d68f120b8eddd8ec3b8d2360ef56450d1f245"
-    windows-ucrt64: "6a69fa069f4f502791fd165b7b7795b59ac6b62690d00631d075abc29d7e1bcd"
+    macos-arm64: "550a8bd3a1b5e4830983fe34241384d58e3ddaef837b9a230704922ce1ca9b0e"
+    linux-gnu-x86_64: "fd62baca534cfca007c6a253365bed3df954d42ce913cf3c6db1e6a62b2101a9"
+    windows-ucrt64: "2f3981a319d6242af0c20cd767fd708b0fcf9accf605502f838b5678873c8883"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
@@ -162,18 +169,18 @@ runtime:
 # tools/pins.rb reads this block into $GITHUB_ENV). The tfs pins are
 # cross-checked against the release's SHA256SUMS at fetch time; the
 # link-unit tarballs are NOT in that monolith, so these pins are their
-# single trust anchor (verified against the v2.5.0 downloads 2026-09-07).
+# single trust anchor (verified against the v2.7.0 downloads 2026-09-12).
 tools:
   repo: "tamatebako/tebako"
-  release: "v2.5.0"
+  release: "v2.7.0"
   sha256:
     tfs:
-      macos-arm64: "0e1f84c1259c3e290c68c329fa763a0bf9f6665efb321e24175013e249061b35"
-      linux-gnu-x86_64: "205b44d9eca7d327215ac0ae394fb74b310581836b56ee080999b873abe49787"
-      windows-ucrt64: "06f0d667ef3ecbf8ad717215872570901cfe31f9b6f68c7fca3fcfb975e6c32d"
+      macos-arm64: "354939b1a6cad7d1112635726bba87dca2e419bcb3c38242f86bcdcdf4a77073"
+      linux-gnu-x86_64: "ca96fa3f9789c1c7e22a1eb4cce28f38277c0822a001dbaaa8d432e1bf268f33"
+      windows-ucrt64: "a30aa578c19b9babfeb24a7ff6fdbbc9f7fd8a1cff066d620645013c4c74d7bc"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
-      macos-arm64: "8535a317ee38f3a9e7e085beb5889b65497b55ab4c4b6442273364f5e0b5a7c3"
-      linux-gnu-x86_64: "f8db761a71dff7a9868d5d76cfc337324a5b55b911d9ea84522d3a702f6eb808"
+      macos-arm64: "0841d529237bf7920358f478621b89a73fad70bf46e0e78a4b5e8720a31ad0a4"
+      linux-gnu-x86_64: "b0324d7f3d0fc0a9a72d23ce902cbcf5db14197464f10988f8c5fb2f1b263c72"
 
 image:
   format: dwarfs
