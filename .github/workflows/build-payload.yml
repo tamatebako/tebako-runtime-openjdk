@@ -1,23 +1,30 @@
 name: build-payload
-# openjdk feedstock: fetch → stage → image → smoke → (on tags) publish.
-# One mechanical leg per (flavor × version × platform) — flavors are the
-# spec 28 §8 implementation axis (temurin / graalvm), platforms
-# aarch64-macos + x86_64-windows-ucrt + x86_64-linux-gnu.
+# openjdk feedstock: fetch → stage → image → smoke → (on tags) publish +
+# sign IN-LEG. One mechanical leg per (flavor × version × platform) —
+# flavors are the spec 28 §8 implementation axis (temurin / graalvm),
+# platforms aarch64-macos + x86_64-windows-ucrt + x86_64-linux-gnu.
 #
 # kind: runtime (spec 28/29): each leg ships the PAIR — the wrapper exe
 # (tebako-runtime-launcher) + the env image (.tfs) + sidecars + the
-# release shard. The publish job uploads the pair, derives the release
-# monoliths (manifest.json + SHA256SUMS.txt, trr#140) from the shards,
-# renders the registry entry from manifests/registry.yaml, and lands it
-# by bot PR. `tebako publish` is NOT used: the CLI refuses kind: runtime
-# (runtimes publish through the runtime release flow).
+# release shard. Spec 13 §2a's de-rendezvous (roadmap 85): on tags the
+# leg that built a pair PUBLISHES its write-once names (exe + .tfs +
+# .sha256 sidecars + <stem>.manifest.json shard — names this leg owns
+# alone) and SIGNS every served name in-leg (spec 09 §5's no-fold rule),
+# so N legs publish concurrently with zero rendezvous. The monolithic
+# manifest.json / SHA256SUMS.txt are NEVER release assets —
+# `tebako-pkg release-index` derives them consumer-side. The ONE release
+# job keeps only the duties that need the whole matrix: the read-only
+# AUDIT (tools/audit_release.rb) and the registry render
+# (tools/registry_update.rb) landed by bot PR. `tebako publish` is NOT
+# used: the CLI refuses kind: runtime (runtimes publish through the
+# runtime release flow).
 #
 # TRUST PLANE (both passes gate-off byte-identical — spec 00 invariant
 # 7): the windows legs Authenticode-sign the fetched wrapper exe IN-LEG
 # before tools/build pairs+hashes it (spec 34 §8.2 — sign-then-hash by
-# construction, never a re-hash), and after the publish job's uploads all
-# land the sign job OpenPGP-signs every release asset (spec 09 §2,
-# scripts/sign_release.rb).
+# construction, never a re-hash), and on signing-enabled lines each leg
+# OpenPGP-signs its own served names right after publishing them
+# (spec 09 §5, scripts/sign_release.rb).
 #
 # PIN DISCIPLINE (the owner's rule): this workflow carries NO version or
 # digest literals. recipe.yml is the SSOT — the `tools:` block pins the
@@ -395,6 +402,14 @@ jobs:
           TAR: ${{ matrix.platform.tar }}
           TFS_CLI: .packager/tfs${{ matrix.platform.exe_suffix }}
           FLAVOR: ${{ matrix.flavor }}
+          # The signing arm (spec 09 §5): on signing-enabled lines
+          # tools/build declares each artifact's `signature` block
+          # ({keyid, asc} — the repo variable names the signer's PRIMARY
+          # keyid) in the release shard, and the leg's sign pass below
+          # produces exactly those .asc assets. Armed + no keyid fails
+          # the build named, before anything publishes.
+          TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
+          TEBAKO_RELEASE_SIGNING_KEYID: ${{ vars.TEBAKO_RELEASE_SIGNING_KEYID }}
         # WRAPPER_BIN (the fetch step) and PRELOAD_SHIM (pins.rb, POSIX
         # only) flow through $GITHUB_ENV — process env, not the static
         # env: context. The windows leg runs a closed PATH: the runner's
@@ -414,13 +429,128 @@ jobs:
           path: out/${{ matrix.flavor }}-${{ matrix.platform.triplet }}/
           retention-days: 7
 
+      - name: Setup Ruby for the release tooling
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      # Spec 13 §2a (the de-rendezvous, roadmap 85): the leg that built a
+      # pair publishes it — the write-once names THIS leg owns alone (the
+      # wrapper exe, the .tfs env image, both .sha256 sidecars, the
+      # <stem>.manifest.json shard) — so N legs publish concurrently with
+      # zero rendezvous. The release is created by the FIRST leg that
+      # finds it missing (the notes are written once there, never
+      # rewritten); the loser's create 422s and it rides the winner's
+      # release. Write-once per name: an already-served name with the
+      # same digest is a skip, with different bytes a loud KEEP — a
+      # re-run never replaces (a bad asset's remedy is `status:
+      # withdrawn` in the registry + the next patch line, spec 04 §2).
+      - name: Publish the leg's runtime pair (spec 13 §2a)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          repo="tamatebako/tebako-runtime-openjdk"
+          tag="${{ github.ref_name }}"
+          out="out/${{ matrix.flavor }}-${{ matrix.platform.triplet }}"
+          notes="$(cat <<'NOTES'
+          ## Tebako openjdk runtime pairs
+
+          Release line: this tag IS the tebako product line the pairs build against.
+
+          Every runtime pair (the wrapper exe + its `.tfs` env image) ships with its
+          own metadata, written once by the build leg that produced it (spec 13 §2a):
+          the `<asset>.sha256` sidecar next to every asset is the trust anchor (the
+          tebako store's own sidecar shape, spec 00 §8), and the
+          `<stem>.manifest.json` shard next to every pair carries exactly its
+          release-index entry. On signing-enabled lines every served name also
+          carries its own detached `.asc` (spec 09 §5).
+
+          There is no monolithic `manifest.json` / `SHA256SUMS.txt` release asset:
+          both are derivable conveniences, computed consumer-side from the shards +
+          the asset listing (`tebako-pkg release-index`). The machine-readable
+          resolution index is this repo's `tpkg-registry.yaml` (spec 04 §2).
+          NOTES
+          )"
+          if ! gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$repo" \
+              --title "$tag — tebako-runtime openjdk (Temurin JRE + GraalVM CE JDK)" \
+              --notes "$notes" \
+              || gh release view "$tag" --repo "$repo" > /dev/null
+          fi
+          gh release view "$tag" --repo "$repo" --json assets \
+            --jq '.assets[] | .name + " " + .digest' > listed.txt
+          sha256_of() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -d' ' -f1; }
+          stem="$RUNTIME_STEM"
+          exe="$stem${{ matrix.platform.exe_suffix }}"
+          # The shard is a bash-rendered heredoc — prove it parses BEFORE
+          # any of its bytes ship (the retired monolith derive was the
+          # only JSON gate; nothing downstream may find a malformed shard).
+          ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' "$out/$stem.manifest.json" || {
+            echo "::error::the release shard $out/$stem.manifest.json is not valid JSON — refusing to publish"
+            exit 1
+          }
+          for name in "$exe" "$exe.sha256" "$stem.tfs" "$stem.tfs.sha256" "$stem.manifest.json"; do
+            f="$out/$name"
+            [ -f "$f" ] || { echo "::error::leg output $f missing — tools/build did not produce it"; exit 1; }
+            want="$(sha256_of "$f")"
+            got="$(awk -v n="$name" '$1 == n { d=$2; sub(/^sha256:/, "", d); print d }' listed.txt | head -1)"
+            if [ "$got" = "$want" ]; then
+              echo "$name already on the release (digest match) — write-once skip"
+              continue
+            fi
+            if [ -n "$got" ]; then
+              echo "::warning::$name is already on the release with DIFFERENT bytes (served $got, built $want) — write-once per name (spec 13 §2a): keeping the served bytes; a fix ships as the next patch line"
+              continue
+            fi
+            gh release upload "$tag" --repo "$repo" "$f"
+          done
+
+      # Spec 09 §5's no-fold rule: the leg signs every served name it
+      # owns — the pair, the sidecars, the shard — in the same leg that
+      # holds the fresh bytes (SIGN_ONLY_STEMS scopes the pass to them;
+      # SIGN_LOCAL_DIR points at them). The gate lives INSIDE the script:
+      # TEBAKO_RELEASE_SIGNING_ENABLED=true arms it; armed + an empty
+      # TEBAKO_RELEASE_SIGNING_KEY secret is a fast named failure;
+      # disarmed exits 0 and the release ships unsigned (unsigned stays
+      # first-class — spec 09 §3). The audit in the release job asserts
+      # the whole matrix's .asc coverage after every leg ran.
+      - name: Sign the leg's release assets (spec 09 §5)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TEBAKO_PKG_HOST_ID: ${{ matrix.platform.asset_platform }}
+          TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
+          TEBAKO_RELEASE_SIGNING_KEY: ${{ secrets.TEBAKO_RELEASE_SIGNING_KEY }}
+        # RUNTIME_STEM flows from pins.rb's $GITHUB_ENV export — process
+        # env, not the static env: context. The tag IS the tebako product
+        # line (v<line>); the script wants the bare version.
+        run: |
+          set -euo pipefail
+          SIGN_ONLY_STEMS="$RUNTIME_STEM" \
+            SIGN_LOCAL_DIR="out/${{ matrix.flavor }}-${{ matrix.platform.triplet }}" \
+            TEBAKO_VERSION="${GITHUB_REF_NAME#v}" ./scripts/sign_release.rb
+
+  # The ONE release job per tag run. Spec 13 §2a's de-rendezvous moved
+  # the publish + sign into the legs (write-once per-leg names — no
+  # shared release-asset mutation remains); what serializes here is only
+  # the two duties that need the whole matrix: the AUDIT (every leg's
+  # expected names verified against the release listing, read-only) and
+  # the registry render + bot PR (git arbitrates the PR).
   release:
-    name: publish
+    name: audit + registry
     if: startsWith(github.ref, 'refs/tags/')
     needs: build
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Guard — the tag IS the tebako product line
@@ -437,159 +567,66 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME ≠ runtime.wrapper_tebako ($WRAPPER_RELEASE) — the tag IS the tebako product line; reline recipe.yml or retag"
             exit 1
           fi
-      - name: Collect payloads (all legs)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Setup Ruby for the release tooling
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
-          pattern: payload-*
-          path: out/
-          merge-multiple: false
-      - name: Restore layout
-        shell: bash
-        run: |
-          set -e
-          for d in out/payload-*/; do
-            p="${d#out/payload-}"; p="${p%/}"
-            mkdir -p "out/$p"
-            mv "$d"* "out/$p/"
-            rmdir "$d"
-          done
-      # The runtime release flow (spec 28 §6): the tag IS the tebako
-      # product line (v<line>, the trr convention — the resolver's
-      # {base}/v<tebako_version>/<asset> URL shape answers it). Assets:
-      # the pair per platform + sidecars + shards, then the derived
-      # monoliths. `tebako publish` refuses kind: runtime
-      # (tebako-cli/src/publish.rs) — the registry entry is rendered from
-      # manifests/registry.yaml instead (the CLI never learns a runtime
-      # verb until the product ships one).
-      - name: Read the toolchain pins (recipe.yml is the SSOT)
-        run: |
-          ruby tools/pins.rb macos-arm64 temurin --env >> "$GITHUB_ENV"
-          ruby tools/pins.rb macos-arm64 graalvm --env | grep -E '^(PKG_VERSION|RUNTIME_STEM_BASE)=' | sed 's/^/GRAALVM_/' >> "$GITHUB_ENV"
-      - name: Create the release + upload the runtime pairs
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${{ github.ref_name }}"
-          gh release create "$tag" --repo tamatebako/tebako-runtime-openjdk \
-            --title "$tag — tebako-runtime openjdk (Temurin JRE $PKG_VERSION + GraalVM CE JDK $GRAALVM_PKG_VERSION)" \
-            --notes "tebako java runtime pair (wrapper exe + env image) per platform; manifest.json is the release index, SHA256SUMS.txt the trust anchor." \
-            || gh release view "$tag" --repo tamatebako/tebako-runtime-openjdk > /dev/null
-          for shard in out/*/tebako-runtime-*.manifest.json; do
-            dir="$(dirname "$shard")"
-            stem="$(basename "$shard" .manifest.json)"
-            # "$stem"* = the exe (+ .exe on windows), the .tfs, both
-            # .sha256 sidecars, the shard — never the sibling
-            # payload-<flavor>-<triplet>.yaml.
-            gh release upload --clobber "$tag" --repo tamatebako/tebako-runtime-openjdk "$dir/$stem"*
-          done
-      - name: Derive + upload the monoliths (manifest.json + SHA256SUMS.txt)
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${{ github.ref_name }}"
-          ruby -rjson -e 'puts JSON.pretty_generate(ARGV.sort.map { |f| JSON.parse(File.read(f)) })' \
-            out/*/tebako-runtime-*.manifest.json > manifest.json
-          cat out/*/tebako-runtime-*.sha256 > SHA256SUMS.txt
-          gh release upload --clobber "$tag" --repo tamatebako/tebako-runtime-openjdk manifest.json SHA256SUMS.txt
-      # The registry mirrors resolution fields only (L3): the env image
-      # is the named artifact per platform; kind: runtime carries NO
-      # entrypoints key (the validator: only apps and toolkits declare
-      # entrypoints).
-      - name: Render the registry entry
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${{ github.ref_name }}"
-          sha_for() { cut -d' ' -f1 "out/$1/$2.tfs.sha256"; }
-          # Both flavors ride the same tag: the temurin template renders
-          # the document, the graalvm template appends its entry (the
-          # flavors' stems differ by language version, so no key/asset
-          # collision).
-          sed -e "s|@@VERSION@@|$PKG_VERSION|g" \
-              -e "s|@@STEM@@|$RUNTIME_STEM_BASE|g" \
-              -e "s|@@TAG@@|$tag|g" \
-              -e "s|@@SHA256_MACOS@@|$(sha_for temurin-aarch64-macos "$RUNTIME_STEM_BASE-macos-arm64")|g" \
-              -e "s|@@SHA256_LINUX@@|$(sha_for temurin-x86_64-linux-gnu "$RUNTIME_STEM_BASE-linux-gnu-x86_64")|g" \
-              -e "s|@@SHA256_WINDOWS@@|$(sha_for temurin-x86_64-windows-ucrt "$RUNTIME_STEM_BASE-windows-ucrt64")|g" \
-              manifests/registry.yaml > tpkg-registry.yaml
-          sed -e "s|@@G_VERSION@@|$GRAALVM_PKG_VERSION|g" \
-              -e "s|@@G_STEM@@|$GRAALVM_RUNTIME_STEM_BASE|g" \
-              -e "s|@@TAG@@|$tag|g" \
-              -e "s|@@G_SHA256_MACOS@@|$(sha_for graalvm-aarch64-macos "$GRAALVM_RUNTIME_STEM_BASE-macos-arm64")|g" \
-              -e "s|@@G_SHA256_LINUX@@|$(sha_for graalvm-x86_64-linux-gnu "$GRAALVM_RUNTIME_STEM_BASE-linux-gnu-x86_64")|g" \
-              -e "s|@@G_SHA256_WINDOWS@@|$(sha_for graalvm-x86_64-windows-ucrt "$GRAALVM_RUNTIME_STEM_BASE-windows-ucrt64")|g" \
-              manifests/registry-graalvm.yaml >> tpkg-registry.yaml
+          ruby-version: '3.3'
+          bundler-cache: true
+      # The audit (spec 13 §2a — completeness is a QUERY, read-only): the
+      # legs already published + signed their pairs in-leg, so this step
+      # never downloads a byte — it verifies the whole matrix's expected
+      # names (pairs, .sha256 sidecars, shards, and — on signing-enabled
+      # lines — every .asc, spec 09 §5) against the release's own
+      # listing, and refuses the retired monoliths. A gap fails the job
+      # BEFORE the registry render (a partial release never mirrors).
+      - name: Audit the release (spec 13 §2a)
+        env:
+          TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
+        # The tag IS the tebako product line (v<line>); the tool wants
+        # the bare version.
+        run: TEBAKO_VERSION="${GITHUB_REF_NAME#v}" ./tools/audit_release.rb
+      # The registry mirror (spec 04 §2): rendered from the release's own
+      # shards — the write-once per-leg metadata units, ground truth —
+      # never from a template's local knowledge. Existing versions keep
+      # their rows; `status: withdrawn` marks survive every render.
+      - name: Render the registry entries
+        run: TEBAKO_VERSION="${GITHUB_REF_NAME#v}" ./tools/registry_update.rb
       # main is branch-protected (and the GitHub-Actions bypass is not
       # available on this plan): the registry lands by bot PR + auto-merge,
       # never by direct push. Idempotent across re-runs of the same tag.
       - name: Publish the registry entry via pull request
         run: |
           set -euo pipefail
+          cp tpkg-registry.yaml "$RUNNER_TEMP/registry.yaml"
           git config user.name "tebako-ci"
           git config user.email "tebako@ribose.com"
           git fetch origin main
+          branch="publish/${{ github.ref_name }}-registry"
+          git checkout -b "$branch" origin/main
+          cp "$RUNNER_TEMP/registry.yaml" tpkg-registry.yaml
           if git diff --quiet origin/main -- tpkg-registry.yaml; then
             echo "registry unchanged (or the entry already landed on main)"
             exit 0
           fi
-          branch="publish/${{ github.ref_name }}-registry"
-          git checkout -b "$branch"
           git add tpkg-registry.yaml
           git commit -m "publish ${{ github.ref_name }}: registry entry"
           # force-with-lease on the bot branch: a re-publish re-creates it
           # (the first attempt's branch rejected the second's push, 21.0.12)
           git push --force-with-lease origin "$branch"
           if ! gh pr view "$branch" >/dev/null 2>&1; then
+            body="$RUNNER_TEMP/registry-pr-body.md"
+            # The heredoc body sits at the YAML block's base indent so it
+            # de-indents to column 0: `<<'` (no dash) keeps leading
+            # whitespace, and a Markdown body indented 4+ spaces renders
+            # as a code block.
+            cat > "$body" <<'EOF'
+          Automated registry entries for this release — rendered from the
+          release's per-package .manifest.json shards by tools/registry_update.rb
+          (spec 13 §2a's audit+registry job; spec 04 §2's mirror). main is
+          protected, so the registry lands by PR.
+          EOF
             gh pr create --base main --head "$branch" \
               --title "publish ${{ github.ref_name }}: registry entry" \
-              --body "Automated registry entry for ${{ github.ref_name }} (the build-payload publish job; main is protected, so the registry lands by PR)."
+              --body-file "$body"
           fi
           gh pr merge --auto --squash "$branch" || gh pr merge --squash "$branch"
-
-  # Spec 09 §2 — the OpenPGP release sign pass (scripts/sign_release.rb,
-  # the tebako-runtime-python#12 port — itself rt-ruby#154 + the #156
-  # base64-decode fix): after the publish job's uploads have ALL landed
-  # (never a partial release), every pair artifact (wrapper exes + .tfs
-  # env images) plus the two monoliths (SHA256SUMS.txt, manifest.json)
-  # ships a detached .asc from the tamatebako release signing subkey,
-  # made by the LATEST tamatebako/tebako release's sha256-verified
-  # tebako-pkg. A separate job, on ubuntu, because tebako-pkg ships as
-  # linux-gnu-x86_64 and the publish job is macOS. The gate lives INSIDE
-  # the script: TEBAKO_RELEASE_SIGNING_ENABLED=true arms the pass; armed
-  # + an empty TEBAKO_RELEASE_SIGNING_KEY secret is a fast named failure;
-  # disarmed exits 0 and the release ships unsigned (unsigned stays
-  # first-class — spec 09 §3).
-  sign:
-    name: Sign the release assets (spec 09)
-    needs: release
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    env:
-      # The runner token suffices (contents: write from the workflow
-      # grant): the sign job reads + uploads THIS repo's release assets
-      # and downloads the tebako product's public release assets.
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # This run's fresh pair bytes, merged flat: signing prefers them
-      # over a re-download (only the derived monoliths — built in the
-      # publish job, never in the artifacts — come back down from the
-      # release).
-      - name: Collect the leg payloads
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: payload-*
-          path: release-assets
-          merge-multiple: true
-      - name: Setup Ruby gems
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-      # The tag IS the tebako product line (v<line> — the trr
-      # convention); the script wants the bare version.
-      - name: Sign the release assets (spec 09)
-        env:
-          TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
-          TEBAKO_RELEASE_SIGNING_KEY: ${{ secrets.TEBAKO_RELEASE_SIGNING_KEY }}
-        run: TEBAKO_VERSION="${GITHUB_REF_NAME#v}" ./scripts/sign_release.rb
