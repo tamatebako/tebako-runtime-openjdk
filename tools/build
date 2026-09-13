@@ -16,8 +16,10 @@
 #   tebako-runtime-<tebako-line>-<lang-version>-<asset-platform>.tfs
 #
 # plus per-asset .sha256 sidecars and the <stem>.manifest.json release
-# shard (the trr#140 shape; the publish job derives the monolith
-# manifest.json + SHA256SUMS.txt from the shards).
+# shard (spec 13 §2a: the leg that built the pair publishes its
+# write-once names in-leg; the monolithic manifest.json / SHA256SUMS.txt
+# are NEVER release assets — `tebako-pkg release-index` derives them
+# consumer-side from the shards + the asset listing).
 #
 # Inputs (env; the workflow's matrix exports the per-leg values):
 #   FLAVOR         the recipe's flavor key (spec 28 §8's implementation
@@ -342,12 +344,34 @@ echo "wrapper: $EXE_OUT"
 echo "sha256: $exe_sha"
 
 # --------------------------------------------------------------- sidecars
-# The trust anchor + the release shard (trr#140: platform legs write only
-# their own assets + shards + sidecars; the publish job derives the
-# monolith manifest.json + SHA256SUMS.txt in its finalize pass).
+# The trust anchor + the release shard (spec 13 §2a, the de-rendezvous):
+# the leg publishes ONLY its own write-once names — the pair, the
+# sidecars, the shard; the monolithic manifest.json / SHA256SUMS.txt are
+# consumer-side derivations (`tebako-pkg release-index`), never release
+# assets. On signing-enabled lines the shard also DECLARES each
+# artifact's signature block ({keyid, asc} — spec 09 §5; the asc
+# spelling is the factory's to declare, the leg's sign pass produces
+# exactly those assets, and a declaration it does not fulfill fails the
+# release job's audit).
 step "sidecars (.sha256) + the release shard (<stem>.manifest.json)"
 printf '%s  %s\n' "$sha" "$STEM.tfs" > "$IMG.sha256"
 printf '%s  %s\n' "$exe_sha" "$STEM$EXE_SUFFIX" > "$EXE_OUT.sha256"
+# The signature declarations (spec 13 §2a / spec 09 §5): keyid is the
+# signer's 16-lowercase-hex PRIMARY keyid (spec 09 §9), flowed from the
+# TEBAKO_RELEASE_SIGNING_KEYID repo variable — armed + missing/malformed
+# fails the build named, BEFORE anything publishes (a shard that cannot
+# declare never ships).
+EXE_SIG=""
+IMG_SIG=""
+if [ "${TEBAKO_RELEASE_SIGNING_ENABLED:-}" = "true" ]; then
+  KEYID="${TEBAKO_RELEASE_SIGNING_KEYID:-}"
+  if [[ ! "$KEYID" =~ ^[0-9a-f]{16}$ ]]; then
+    echo "TEBAKO_RELEASE_SIGNING_KEYID must be the signer's 16-lowercase-hex PRIMARY keyid (spec 09 §9), got '${KEYID}'"
+    exit 1
+  fi
+  EXE_SIG=$'\n  "signature": {"keyid": "'"$KEYID"$'", "asc": "'"$STEM$EXE_SUFFIX"$'.asc"},'
+  IMG_SIG=$',\n    "signature": {"keyid": "'"$KEYID"$'", "asc": "'"$STEM"$'.tfs.asc"}'
+fi
 ARCHIVE_NAME="$(basename "$URL")"
 RELEASE_REF="${GITHUB_REF_NAME:-local}"
 # Display metadata (the versions catalog's chip axis), never a selector axis:
@@ -368,7 +392,7 @@ cat > "$OUT/$STEM.manifest.json" <<EOF
   "platform": "$ASSET_PLATFORM",
   "filename": "$STEM$EXE_SUFFIX",
   "sha256": "$exe_sha",
-  "size_bytes": $(filesize "$EXE_OUT"),
+  "size_bytes": $(filesize "$EXE_OUT"),$EXE_SIG
   "mount_root": "$MOUNT_ROOT",
   "image_layout": 1,
   "built_from": {
@@ -380,7 +404,7 @@ cat > "$OUT/$STEM.manifest.json" <<EOF
   "image": {
     "filename": "$STEM.tfs",
     "sha256": "$sha",
-    "size_bytes": $(filesize "$IMG")
+    "size_bytes": $(filesize "$IMG")$IMG_SIG
   }
 }
 EOF

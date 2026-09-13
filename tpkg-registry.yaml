@@ -1,55 +1,54 @@
+# =============================================================================
+# tpkg-registry.yaml — the tebako-runtime-openjdk runtime registry (spec 04 §2)
+#
+# OWNED BY tools/registry_update.rb — rendered from a release's per-package
+# .manifest.json shards by the build-payload workflow's release job and
+# landed on main by bot PR (spec 13 §2a). NEVER hand-edit: the one sanctioned
+# manual mark is `status: withdrawn` on a version entry (spec 04 §2 — release
+# assets are immutable, so withdrawal is the only remedy for a bad published
+# artifact), and the renderer preserves those marks across renders.
+#
+# kind: runtime entries carry NO entrypoints key (the registry validator:
+# only apps and toolkits declare entrypoints). `implementation` is the spec
+# 28 §8 flavor axis: `openjdk` is the default flavor (temurin — every default
+# resolution channel points here), `openjdk-graalvm` serves `java:graalvm`
+# selectors.
+# =============================================================================
 schema_version: 1
-# Registry template for the openjdk RUNTIME entry — rendered by the
-# publish job (sed tokens from the built shards/sidecars) and landed on
-# main by bot PR, replacing tools' `tebako publish --registry-out` flow
-# (the CLI refuses kind: runtime — runtimes publish through the runtime
-# release flow). kind: runtime entries carry NO entrypoints key (the
-# registry validator: only apps and toolkits declare entrypoints).
-# `implementation` is the spec 28 §8 flavor axis (temurin here; graalvm
-# rides the sibling registry-graalvm.yaml template, concatenated onto
-# this document by the publish job).
 payloads:
 - name: openjdk
   kind: runtime
   versions:
-  - version: '21.0.12'
+  - version: 21.0.12
     implementation: temurin
     platforms:
       aarch64-macos:
         artifact: tebako-runtime-2.7.0-21.0.12-macos-arm64.tfs
-        sha256: '9100b0ab26f5c91579d6656a23872358411e01288f5b93c53dccba7401c0e068'
+        sha256: 9100b0ab26f5c91579d6656a23872358411e01288f5b93c53dccba7401c0e068
       x86_64-linux-gnu:
         artifact: tebako-runtime-2.7.0-21.0.12-linux-gnu-x86_64.tfs
-        sha256: '4da48d3e60f5eecf3f0451a3509eee6bb0f62d86ddef68d745c789d857599d92'
+        sha256: 4da48d3e60f5eecf3f0451a3509eee6bb0f62d86ddef68d745c789d857599d92
       x86_64-windows-ucrt:
         artifact: tebako-runtime-2.7.0-21.0.12-windows-ucrt64.tfs
-        sha256: 'c3582d4189ecd0d7141129d3c51cf7f0d78e5c45d661967683597989ea7d9221'
+        sha256: c3582d4189ecd0d7141129d3c51cf7f0d78e5c45d661967683597989ea7d9221
     release:
       ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.7.0
-  default: '21.0.12'
-# Registry template FRAGMENT for the openjdk-graalvm RUNTIME entry — the
-# spec 28 §8 implementation axis's graalvm flavor (GraalVM Community,
-# full JDK + native-image). NOT a standalone document: the publish job
-# appends this fragment to the rendered registry.yaml (the temurin entry
-# carries schema_version + the payloads: key). Same tag as temurin (the
-# tag IS the tebako product line); the flavors never collide — the stems
-# differ by language version and the platform digests come from the
-# flavor-prefixed payload dirs.
+  default: 21.0.12
 - name: openjdk-graalvm
   kind: runtime
   versions:
-  - version: '25.0.4.1'
+  - version: 25.0.4.1
     implementation: graalvm
     platforms:
       aarch64-macos:
         artifact: tebako-runtime-2.7.0-25.0.4.1-macos-arm64.tfs
-        sha256: '19dff16a335a8a084f7868ec0cf4615e06bfa524fd0bf302fec7af6a7a7f5a87'
+        sha256: 19dff16a335a8a084f7868ec0cf4615e06bfa524fd0bf302fec7af6a7a7f5a87
       x86_64-linux-gnu:
         artifact: tebako-runtime-2.7.0-25.0.4.1-linux-gnu-x86_64.tfs
-        sha256: 'df209b2659b9242a79a63cb13b56d5415d7edfa958a9cd3c4222cd556bd690a5'
+        sha256: df209b2659b9242a79a63cb13b56d5415d7edfa958a9cd3c4222cd556bd690a5
       x86_64-windows-ucrt:
         artifact: tebako-runtime-2.7.0-25.0.4.1-windows-ucrt64.tfs
-        sha256: '54ff6c396d27fed65ca5e71a027f701bd7381d8867b62085cd6e124ed8b4279f'
+        sha256: 54ff6c396d27fed65ca5e71a027f701bd7381d8867b62085cd6e124ed8b4279f
     release:
       ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.7.0
-  default: '25.0.4.1'
+  default: 25.0.4.1
