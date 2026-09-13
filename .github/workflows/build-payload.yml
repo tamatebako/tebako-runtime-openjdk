@@ -630,3 +630,50 @@ jobs:
               --body-file "$body"
           fi
           gh pr merge --auto --squash "$branch" || gh pr merge --squash "$branch"
+
+  # The terminal aggregate — and the branch-protection gate. The build
+  # legs are a dynamic matrix whose check names shift with the matrix
+  # vocabulary (a new flavor or triplet renames every leg), so branch
+  # protection pins THIS job's one stable check name (`all legs green`)
+  # instead of any leg's. Green means: every build leg succeeded, and —
+  # on tag runs — the audit + registry job succeeded too (a branch/PR
+  # run skips it legitimately; signing rides in-leg, spec 13 §2a, so
+  # there is no separate publish/sign job to gate). `always() &&
+  # !cancelled()`: without it a failed upstream job would SKIP this one,
+  # and a skipped required check reads as satisfied — the gate must
+  # report red, never vanish.
+  verify:
+    name: all legs green
+    needs: [build, release]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on the legs
+        run: |
+          set -euo pipefail
+          echo "ref:     ${{ github.ref }} (${{ github.event_name }})"
+          echo "build:   ${{ needs.build.result }}"
+          echo "release: ${{ needs.release.result }}"
+          # Every build leg must be green, on every event.
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "::error::not every build leg succeeded: ${{ needs.build.result }}"
+            exit 1
+          fi
+          # The audit + registry job exists on tag runs only; a branch/PR
+          # run skips it legitimately — any other non-success is red.
+          case "${{ needs.release.result }}" in
+            success | skipped) : ;;
+            *)
+              echo "::error::the audit + registry job did not complete cleanly: ${{ needs.release.result }}"
+              exit 1
+              ;;
+          esac
+          # On a tag run a skip is a bug: the publish gate must be green.
+          case "${{ github.ref }}" in
+            refs/tags/*)
+              if [ "${{ needs.release.result }}" != "success" ]; then
+                echo "::error::tag run with the audit + registry job at '${{ needs.release.result }}' — it must succeed on a tag"
+                exit 1
+              fi
+              ;;
+          esac
