@@ -49,10 +49,10 @@ TEBAKO_REPO = "tamatebako/tebako"
 # .sha256 sidecars, the per-package .manifest.json shards). Nothing folds
 # into a signed monolith: spec 13 §2a's de-rendezvous retired the
 # monolithic manifest.json and SHA256SUMS.txt as release assets (the
-# consumer-side `tebako-pkg release-index` replaces them), so no monolith
+# consumers derive them from the shards + the asset listing), so no monolith
 # .asc exists either — and no INDEX_FILES gate. Each build leg signs its
 # own fresh bytes in-leg, in the same invocation that published them — the
-# write-once names that leg owns alone (roadmap 85). Ported from
+# write-once names that leg owns alone. Ported from
 # tebako-runtime-ruby#161's scripts/sign_release.rb.
 #
 # The signing tool is the LATEST tamatebako/tebako release's tebako-pkg
