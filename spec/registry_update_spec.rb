@@ -128,6 +128,10 @@ RSpec.describe RegistryUpdate do
 
     temurin = payload_named(doc, "openjdk")
     expect(temurin["kind"]).to eq("runtime")
+    # The MINOR-1 edge-discovery key — an engine-less runtime entry is
+    # invisible to `kind: runtime` edges.
+    expect(temurin["engine"]).to eq("java")
+    expect(payload_named(doc, "openjdk-graalvm")["engine"]).to eq("java")
     # Numeric sort, never lexical: 21.0.9 < 21.0.12.
     expect(temurin["versions"].map { |v| v["version"] }).to eq(["21.0.9", "21.0.12"])
     v = temurin["versions"].find { |x| x["version"] == "21.0.12" }

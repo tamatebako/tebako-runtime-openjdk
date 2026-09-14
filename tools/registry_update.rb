@@ -89,7 +89,9 @@ class RegistryUpdate # rubocop:disable Metrics/ClassLength
     # artifact), and the renderer preserves those marks across renders.
     #
     # kind: runtime entries carry NO entrypoints key (the registry validator:
-    # only apps and toolkits declare entrypoints). `implementation` is the spec
+    # only apps and toolkits declare entrypoints) and ALWAYS carry `engine`
+    # (spec 04 §2 MINOR 1 — the edge-discovery key; an engine-less runtime
+    # entry is invisible to `kind: runtime` edges). `implementation` is the spec
     # 28 §8 flavor axis: `openjdk` is the default flavor (temurin — every default
     # resolution channel points here), `openjdk-graalvm` serves `java:graalvm`
     # selectors.
@@ -236,6 +238,12 @@ class RegistryUpdate # rubocop:disable Metrics/ClassLength
         payload = { "name" => name, "kind" => "runtime", "versions" => [] }
         payloads << payload
       end
+      # The edge-discovery key (spec 04 §2 MINOR 1): a runtime entry
+      # without engine: is invisible to `kind: runtime` edges. The
+      # renderer owns the key — upsert it on EXISTING entries too (a
+      # registry rendered before the key existed gains it on the next
+      # render, never by hand-edit).
+      payload["engine"] = "java"
       versions = payload["versions"] ||= []
       rows.each { |row| merge_version(versions, row) }
       payload["versions"] = versions.sort_by { |v| version_sort_key(v.fetch("version")) }
