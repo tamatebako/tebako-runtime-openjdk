@@ -31,7 +31,7 @@ Toolkit era: pre-promotion this repo shipped `kind: toolkit` payloads
 release tags follow the trr convention `v<tebako-line>` (the tag IS the
 tebako line the pair builds against).
 
-## Release shape (spec 13 §2a — the de-rendezvous, roadmap 85)
+## Release shape (spec 13 §2a — the de-rendezvous)
 
 On a tag, each build leg **publishes and signs in-leg**: the leg that
 built a pair uploads only the write-once names it owns (the wrapper exe,
