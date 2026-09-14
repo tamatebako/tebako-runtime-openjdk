@@ -9,7 +9,9 @@
 # artifact), and the renderer preserves those marks across renders.
 #
 # kind: runtime entries carry NO entrypoints key (the registry validator:
-# only apps and toolkits declare entrypoints). `implementation` is the spec
+# only apps and toolkits declare entrypoints) and ALWAYS carry `engine`
+# (spec 04 §2 MINOR 1 — the edge-discovery key; an engine-less runtime
+# entry is invisible to `kind: runtime` edges). `implementation` is the spec
 # 28 §8 flavor axis: `openjdk` is the default flavor (temurin — every default
 # resolution channel points here), `openjdk-graalvm` serves `java:graalvm`
 # selectors.
@@ -34,6 +36,7 @@ payloads:
     release:
       ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.7.0
   default: 21.0.12
+  engine: java
 - name: openjdk-graalvm
   kind: runtime
   versions:
@@ -52,3 +55,4 @@ payloads:
     release:
       ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.7.0
   default: 25.0.4.1
+  engine: java
