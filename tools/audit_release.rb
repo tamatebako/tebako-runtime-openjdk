@@ -44,7 +44,7 @@ RUNTIME_REPO = "tamatebako/tebako-runtime-openjdk" unless defined?(RUNTIME_REPO)
 
 # The release audit (spec 13 §2a — completeness is a QUERY, not a gate
 # that mutates): strictly read-only. The build legs publish and sign
-# their own write-once names in-leg (the de-rendezvous, roadmap 85); this
+# their own write-once names in-leg (the de-rendezvous); this
 # is the coordinator's whole-matrix check that every leg's names actually
 # landed. The expected set is derived from the build workflow's own
 # matrix × recipe.yml's version pins: every leg's pair (wrapper exe + env

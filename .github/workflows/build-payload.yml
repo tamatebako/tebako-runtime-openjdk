@@ -6,13 +6,16 @@ name: build-payload
 #
 # kind: runtime (spec 28/29): each leg ships the PAIR — the wrapper exe
 # (tebako-runtime-launcher) + the env image (.tfs) + sidecars + the
-# release shard. Spec 13 §2a's de-rendezvous (roadmap 85): on tags the
+# release shard. Spec 13 §2a's de-rendezvous: on tags the
 # leg that built a pair PUBLISHES its write-once names (exe + .tfs +
 # .sha256 sidecars + <stem>.manifest.json shard — names this leg owns
 # alone) and SIGNS every served name in-leg (spec 09 §5's no-fold rule),
 # so N legs publish concurrently with zero rendezvous. The monolithic
-# manifest.json / SHA256SUMS.txt are NEVER release assets —
-# `tebako-pkg release-index` derives them consumer-side. The ONE release
+# manifest.json / SHA256SUMS.txt are NEVER release assets — each shard
+# IS its own release-index entry (the resolver's primary form), and the
+# monoliths are derivable consumer-side from the shards + the asset
+# listing (the metanorma feedstock's tools/stage_spawned_mirror is the
+# reference derivation). The ONE release
 # job keeps only the duties that need the whole matrix: the read-only
 # AUDIT (tools/audit_release.rb) and the registry render
 # (tools/registry_update.rb) landed by bot PR. `tebako publish` is NOT
@@ -436,7 +439,7 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: true
 
-      # Spec 13 §2a (the de-rendezvous, roadmap 85): the leg that built a
+      # Spec 13 §2a (the de-rendezvous): the leg that built a
       # pair publishes it — the write-once names THIS leg owns alone (the
       # wrapper exe, the .tfs env image, both .sha256 sidecars, the
       # <stem>.manifest.json shard) — so N legs publish concurrently with
@@ -471,8 +474,9 @@ jobs:
           carries its own detached `.asc` (spec 09 §5).
 
           There is no monolithic `manifest.json` / `SHA256SUMS.txt` release asset:
-          both are derivable conveniences, computed consumer-side from the shards +
-          the asset listing (`tebako-pkg release-index`). The machine-readable
+          each shard IS its own release-index entry (the resolver's primary form),
+          and both monoliths are derivable conveniences, computed consumer-side
+          from the shards + the asset listing. The machine-readable
           resolution index is this repo's `tpkg-registry.yaml` (spec 04 §2).
           NOTES
           )"
