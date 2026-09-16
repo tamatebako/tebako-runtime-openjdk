@@ -35,7 +35,7 @@ require "octokit"
 $stdout.sync = true
 
 # The expected (flavor × platform) matrix flows from the build workflow +
-# recipe.yml through the feedstock model — never a second hand-authored
+# Tebakofile through the feedstock model — never a second hand-authored
 # copy (spec 00 §10).
 $LOAD_PATH.unshift(File.expand_path("lib", __dir__))
 require "feedstock"
@@ -47,7 +47,7 @@ RUNTIME_REPO = "tamatebako/tebako-runtime-openjdk" unless defined?(RUNTIME_REPO)
 # their own write-once names in-leg (the de-rendezvous); this
 # is the coordinator's whole-matrix check that every leg's names actually
 # landed. The expected set is derived from the build workflow's own
-# matrix × recipe.yml's version pins: every leg's pair (wrapper exe + env
+# matrix × Tebakofile's version pins: every leg's pair (wrapper exe + env
 # image), each asset's .sha256 sidecar, and the package's
 # .manifest.json shard must be listed; on signing-enabled lines every
 # served name additionally owes its own .asc (spec 09 §5's no-fold rule).

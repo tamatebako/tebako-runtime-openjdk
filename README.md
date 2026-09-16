@@ -58,7 +58,7 @@ The single `release` job then keeps only the two whole-matrix duties:
 
 1. **Audit** (`tools/audit_release.rb`, read-only) — the expected
    (flavor × platform) matrix, derived from the workflow's own build
-   matrix × `recipe.yml`'s pins, must be a subset of the release
+   matrix × `Tebakofile`'s pins, must be a subset of the release
    listing; on signing-enabled lines every served name's `.asc` is
    required, and the retired monoliths are refused.
 2. **Registry** (`tools/registry_update.rb`) — renders

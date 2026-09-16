@@ -69,7 +69,7 @@ RUNTIME_REPO = "tamatebako/tebako-runtime-openjdk" unless defined?(RUNTIME_REPO)
 class RegistryUpdate # rubocop:disable Metrics/ClassLength
   class RegistryUpdateError < StandardError; end
 
-  # The default flavor (recipe.yml's documented rule: "temurin is the
+  # The default flavor (Tebakofile's documented rule: "temurin is the
   # DEFAULT flavor") keeps the bare payload name; every other flavor's
   # payload is suffixed with its implementation.
   DEFAULT_IMPLEMENTATION = "temurin"

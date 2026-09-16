@@ -71,7 +71,7 @@ jobs:
       - name: parse every authored YAML
         run: |
           ruby -ryaml -e '
-            (Dir[".github/workflows/*.{yml,yaml}"] + %w[recipe.yml tpkg-registry.yaml]).each do |f|
+            (Dir[".github/workflows/*.{yml,yaml}"] + %w[Tebakofile tpkg-registry.yaml]).each do |f|
               YAML.load_file(f)
               puts "parsed #{f}"
             end

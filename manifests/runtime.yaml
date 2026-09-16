@@ -1,6 +1,6 @@
 schema_version: 1
 # Runtime manifest template for openjdk (spec 03 §2.2, kind: runtime;
-# filled from recipe.yml's upstream/runtime blocks by tools/build).
+# filled from Tebakofile's upstream/runtime blocks by tools/build).
 identity:
   schema_version: 1
   kind: runtime
@@ -30,7 +30,7 @@ provides:
     # spec 28 §8's flavor axis — EngineProvides.implementation (tpkg
     # since spec 30 §1; additive, absent = eligible). L1 is authoritative;
     # the release-index shard mirrors the same value for the store's
-    # entry_meta. SSOT: recipe.yml's flavors.<flavor>.implementation.
+    # entry_meta. SSOT: Tebakofile's flavors.<flavor>.implementation.
     implementation: "@@IMPLEMENTATION@@"
   built_from:
     src_sha256: "@@UPSTREAM_SHA256@@"
@@ -42,7 +42,7 @@ provides:
   # tools/build renders this block from the recipe's flavor entrypoints
   # (the feedstock SSOT): each name maps to /bin/<name>[.exe] — the
   # JDK's own bin inventory; a runtime runs on itself, so no
-  # runtime_requirement. spec 28 §8's `implementation` rides recipe.yml's
+  # runtime_requirement. spec 28 §8's `implementation` rides Tebakofile's
   # flavors.<flavor>.implementation into BOTH the provides block above
   # (L1, authoritative) and the release-index shard (L3 — the store's
   # entry_meta reads it from the cached manifest.json).
