@@ -31,14 +31,14 @@ require "yaml"
 # second hand-authored copy): the two release-time tools
 # (tools/audit_release.rb, tools/registry_update.rb) read the expected
 # (flavor × platform) matrix FROM the build workflow's own matrix block
-# (the owner of what gets built) and the version pins FROM recipe.yml
+# (the owner of what gets built) and the version pins FROM Tebakofile
 # (the owner of every version/digest literal). Both readers fail closed:
 # a shape they do not recognize is a named error, never a guess.
 module Feedstock
   class FeedstockError < StandardError; end
 
   REPO_ROOT = File.expand_path("../..", __dir__).freeze
-  RECIPE_BASENAME = "recipe.yml"
+  RECIPE_BASENAME = "Tebakofile"
   MATRIX_RELPATH = ".github/workflows/build-payload.yml"
 
   # One platform leg of the build matrix: the spec 03 triplet (the
@@ -75,7 +75,7 @@ module Feedstock
     raise FeedstockError, "NAMED FAILURE: #{recipe_path(env)} runtime.wrapper_tebako missing"
   end
 
-  # The flavor's published java version (recipe.yml's
+  # The flavor's published java version (Tebakofile's
   # flavors.<flavor>.upstream.version — the version pin's single owner).
   def flavor_version(flavor, env = ENV)
     version = recipe(env).dig("flavors", flavor, "upstream", "version")

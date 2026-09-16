@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# pins.rb — read recipe.yml's `tools:` block (the repo's toolchain pin
+# pins.rb — read Tebakofile's `tools:` block (the repo's toolchain pin
 # SSOT) and emit KEY=VALUE lines for $GITHUB_ENV. The workflow carries NO
 # version or digest literals — every value flows from the recipe.
 #
@@ -17,7 +17,7 @@
 # guess (spec 00 §9).
 #
 # Runtime-promotion additions (the kind: runtime pair): the wrapper exe
-# pin flows from recipe.yml's runtime.wrapper_tebako (WRAPPER_RELEASE /
+# pin flows from Tebakofile's runtime.wrapper_tebako (WRAPPER_RELEASE /
 # WRAPPER_ASSET / RUNTIME_STEM_BASE) and the POSIX legs get PRELOAD_SHIM
 # (the extracted link-unit tarball's libtfs_preload path). The sha256
 # map is data-driven: every tool key under tools.sha256 emits
@@ -38,11 +38,11 @@ def die(msg)
 end
 
 root = File.expand_path("..", __dir__)
-recipe = YAML.load_file(File.join(root, "recipe.yml"))
+recipe = YAML.load_file(File.join(root, "Tebakofile"))
 tools = recipe.fetch("tools")
 release = tools.fetch("release")
 version = release.sub(/\Av/, "")
-die "recipe.yml tools.sha256 missing" unless tools["sha256"].is_a?(Hash)
+die "Tebakofile tools.sha256 missing" unless tools["sha256"].is_a?(Hash)
 
 # The flavor axis (spec 28 §8): the flavor key names the recipe's
 # flavors:<flavor> block (default temurin). Positional after the
@@ -57,15 +57,15 @@ flavor = if ARGV.include?("--release-only")
            positional[1] || ENV["FLAVOR"] || "temurin"
          end
 flavors = recipe.fetch("flavors") do
-  die "recipe.yml flavors block missing"
+  die "Tebakofile flavors block missing"
 end
 flavor_block = flavors[flavor] or
-  die "recipe.yml: unknown flavor '#{flavor}' (have: #{flavors.keys.join(', ')})"
+  die "Tebakofile: unknown flavor '#{flavor}' (have: #{flavors.keys.join(', ')})"
 
 runtime = recipe.fetch("runtime")
 wrapper_tebako = runtime.fetch("wrapper_tebako")
 pkg_version = flavor_block.dig("upstream", "version") ||
-              die("recipe.yml flavors.#{flavor}.upstream.version missing")
+              die("Tebakofile flavors.#{flavor}.upstream.version missing")
 
 pairs = {
   "TEBAKO_RELEASE" => release,
@@ -85,7 +85,7 @@ unless ARGV.include?("--release-only")
   tools.fetch("sha256").each do |tool, shas|
     sha = shas[platform]
     if sha.nil?
-      die "recipe.yml: no tools.sha256.#{tool}.#{platform} pin" unless posix_only.include?(tool)
+      die "Tebakofile: no tools.sha256.#{tool}.#{platform} pin" unless posix_only.include?(tool)
       warn "pins.rb: #{tool} has no #{platform} pin (POSIX-only tool — skipped)"
       next
     end
@@ -106,7 +106,7 @@ unless ARGV.include?("--release-only")
   pairs["WRAPPER_ASSET"] = "tebako-runtime-launcher-#{wrapper_tebako}-#{platform}#{exe}"
   wrapper_shas = runtime.fetch("wrapper_sha256")
   pairs["WRAPPER_SHA256"] = wrapper_shas[platform] ||
-                            die("recipe.yml: no runtime.wrapper_sha256.#{platform} pin")
+                            die("Tebakofile: no runtime.wrapper_sha256.#{platform} pin")
   pairs["RUNTIME_STEM_BASE"] = "tebako-runtime-#{wrapper_tebako}-#{pkg_version}"
   pairs["RUNTIME_STEM"] = "#{pairs['RUNTIME_STEM_BASE']}-#{platform}"
   # The extracted preload shim (POSIX legs only; the windows image omits

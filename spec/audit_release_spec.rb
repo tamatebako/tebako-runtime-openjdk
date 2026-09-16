@@ -34,7 +34,7 @@ RSpec.describe ReleaseAudit do
   let(:version) { "9.9.9" }
   let(:release) { AuditSpecRelease.new("https://api.test/releases/1") }
 
-  # The feedstock fixtures: a mini recipe.yml + a mini build-payload
+  # The feedstock fixtures: a mini Tebakofile + a mini build-payload
   # workflow whose matrix block mirrors the real one's shape (2 flavors ×
   # 3 platforms). Feedstock parses these; the expected names below are
   # written out literally, so a misread fixture fails the clean case.
@@ -77,7 +77,7 @@ RSpec.describe ReleaseAudit do
 
   def audit_for(asset_names, env_extra: {})
     Dir.mktmpdir do |dir|
-      recipe_path = File.join(dir, "recipe.yml")
+      recipe_path = File.join(dir, "Tebakofile")
       matrix_path = File.join(dir, "build-payload.yml")
       File.write(recipe_path, RECIPE_FIXTURE)
       File.write(matrix_path, MATRIX_FIXTURE)

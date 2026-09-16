@@ -3,7 +3,7 @@
 # mechanical leg per triplet, per docs/conventions.md).
 #
 # Repack flow (no compilation): download the pinned archive of THIS
-# leg's flavor (recipe.yml flavors:<FLAVOR>) for THIS leg's platform, sha256-verify, unpack to the payload root
+# leg's flavor (Tebakofile flavors:<FLAVOR>) for THIS leg's platform, sha256-verify, unpack to the payload root
 # (strip_components from the recipe), stage the preload shim (POSIX
 # legs), embed the tier-1 runtime manifest at /__tpkg__/manifest.yaml
 # (blob digest zeroed per the fixed-point rule) and the layout
@@ -94,7 +94,7 @@ recipe_flavor_value() {
       print line
       exit
     }
-  ' "$FEEDSTOCK/recipe.yml"
+  ' "$FEEDSTOCK/Tebakofile"
 }
 recipe_value() {
   # the flavor's upstream scalar (version, build) — 6-space; tolerates
@@ -110,7 +110,7 @@ recipe_value() {
       print line
       exit
     }
-  ' "$FEEDSTOCK/recipe.yml"
+  ' "$FEEDSTOCK/Tebakofile"
 }
 recipe_source_value() {
   awk -v flavor="$FLAVOR" -v platform="$TRIPLET" -v key="$1" "$_flavor_scope"'
@@ -121,7 +121,7 @@ recipe_source_value() {
       print
       exit
     }
-  ' "$FEEDSTOCK/recipe.yml"
+  ' "$FEEDSTOCK/Tebakofile"
 }
 # The runtime block's scalars (indented two under the top-level
 # `runtime:` key) — the SHARED contract keys; the per-flavor contract
@@ -142,7 +142,7 @@ recipe_runtime_value() {
       print line
       exit
     }
-  ' "$FEEDSTOCK/recipe.yml"
+  ' "$FEEDSTOCK/Tebakofile"
 }
 
 VERSION="$(recipe_value version)"
@@ -151,7 +151,7 @@ URL="$(recipe_source_value url)"
 SHA256="$(recipe_source_value sha256)"
 STRIP="$(recipe_source_value strip_components)"
 [ -n "$VERSION" ] && [ -n "$BUILD" ] && [ -n "$URL" ] && [ -n "$SHA256" ] && [ -n "$STRIP" ] || {
-  echo "recipe.yml flavors.$FLAVOR upstream version/build or a sources entry for $TRIPLET unreadable (unknown FLAVOR?)"; exit 1; }
+  echo "Tebakofile flavors.$FLAVOR upstream version/build or a sources entry for $TRIPLET unreadable (unknown FLAVOR?)"; exit 1; }
 
 ENGINE="$(recipe_runtime_value engine)"
 IMPLEMENTATION="$(recipe_flavor_value implementation)"
@@ -165,9 +165,9 @@ WRAPPER_TEBAKO="$(recipe_runtime_value wrapper_tebako)"
 ENTRYPOINTS="$(recipe_flavor_value entrypoints | sed -E 's/^\[//; s/\]$//; s/,/ /g')"
 for v in ENGINE IMPLEMENTATION LANG_VERSION ABI_LINE API_VERSION INTERPRETER VISIBILITY WRAPPER_TEBAKO; do
   eval "val=\$$v"
-  [ -n "$val" ] || { echo "recipe.yml runtime/flavors.$FLAVOR .${v} unreadable (or empty)"; exit 1; }
+  [ -n "$val" ] || { echo "Tebakofile runtime/flavors.$FLAVOR .${v} unreadable (or empty)"; exit 1; }
 done
-[ -n "$ENTRYPOINTS" ] || { echo "recipe.yml flavors.$FLAVOR.entrypoints unreadable (or empty)"; exit 1; }
+[ -n "$ENTRYPOINTS" ] || { echo "Tebakofile flavors.$FLAVOR.entrypoints unreadable (or empty)"; exit 1; }
 # The windows carve-out (optional per-flavor entrypoints_windows_drop):
 # names upstream ships only as .cmd launchers on windows (graalvm's
 # native-image family) leave the declared surface on that leg — the
