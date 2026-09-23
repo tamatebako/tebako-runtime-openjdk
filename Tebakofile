@@ -173,6 +173,11 @@ runtime:
 tools:
   repo: "tamatebako/tebako"
   release: "v2.7.0"
+  # The release machinery pin: the tamatebako/tebako-release-tooling tag
+  # the Gemfile resolves (the sign step's tebako-release exe). The gem is
+  # the signer's single owner (ecosystem invariant 10) — this feedstock
+  # carries no copy of it.
+  release_tooling: "v0.1.0"
   sha256:
     tfs:
       macos-arm64: "354939b1a6cad7d1112635726bba87dca2e419bcb3c38242f86bcdcdf4a77073"

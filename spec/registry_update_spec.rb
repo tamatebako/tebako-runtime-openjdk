@@ -13,7 +13,7 @@ require "yaml"
 $LOAD_PATH.unshift(File.expand_path("../tools", __dir__))
 require "registry_update"
 
-# Recording stand-ins in the sign_release_spec idiom: the renderer accepts
+# Recording stand-ins in the release-spec idiom: the renderer accepts
 # any client object, and every interaction is observable through the fake.
 RegistrySpecRelease = Struct.new(:url, :tag_name)
 RegistrySpecAsset = Struct.new(:name, :browser_download_url)

@@ -67,6 +67,8 @@ The single `release` job then keeps only the two whole-matrix duties:
    existing versions' rows and any `status: withdrawn` marks;
    `default:` tracks the newest non-withdrawn version.
 
-Tooling specs live in `spec/` (`sign_release_spec.rb`,
-`audit_release_spec.rb`, `registry_update_spec.rb`) and run in the lint
-workflow.
+Tooling specs live in `spec/` (`audit_release_spec.rb`,
+`registry_update_spec.rb`) and run in the lint workflow. The release
+sign pass is the tebako-release gem's (tamatebako/tebako-release-tooling,
+pinned at Tebakofile's `tools.release_tooling`) — its coverage lives
+with the gem.
