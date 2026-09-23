@@ -1,8 +1,9 @@
 # The lint gate: everything that can be proven WITHOUT real builds —
 # the recipe + manifest templates + registry parse, every authored ruby
 # file ruby -c clean, every authored shell tool bash -n clean, and the
-# spec suite green (spec/sign_release_spec.rb, the spec 09 sign pass's
-# coverage). The build legs' own gates (read-back, the boot/wrapper
+# spec suite green (the audit + registry suites; the sign pass's
+# coverage lives in the tebako-release gem). The build legs' own gates
+# (read-back, the boot/wrapper
 # smokes) live in build-payload.yml.
 name: lint
 

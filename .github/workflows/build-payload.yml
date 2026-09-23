@@ -27,7 +27,8 @@ name: build-payload
 # before tools/build pairs+hashes it (spec 34 §8.2 — sign-then-hash by
 # construction, never a re-hash), and on signing-enabled lines each leg
 # OpenPGP-signs its own served names right after publishing them
-# (spec 09 §5, scripts/sign_release.rb).
+# (spec 09 §5, the tebako-release gem's signer — Tebakofile's
+# tools.release_tooling pins it).
 #
 # PIN DISCIPLINE (the owner's rule): this workflow carries NO version or
 # digest literals. Tebakofile is the SSOT — the `tools:` block pins the
@@ -529,17 +530,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The gem's signer is sign-only here: no adapter file, the repo
+          # declaration rides the env (TebakoRelease::Config.from_env).
+          TEBAKO_RELEASE_REPO: tamatebako/tebako-runtime-openjdk
           TEBAKO_PKG_HOST_ID: ${{ matrix.platform.asset_platform }}
           TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
           TEBAKO_RELEASE_SIGNING_KEY: ${{ secrets.TEBAKO_RELEASE_SIGNING_KEY }}
         # RUNTIME_STEM flows from pins.rb's $GITHUB_ENV export — process
         # env, not the static env: context. The tag IS the tebako product
-        # line (v<line>); the script wants the bare version.
+        # line (v<line>); the signer wants the bare version.
         run: |
           set -euo pipefail
           SIGN_ONLY_STEMS="$RUNTIME_STEM" \
             SIGN_LOCAL_DIR="out/${{ matrix.flavor }}-${{ matrix.platform.triplet }}" \
-            TEBAKO_VERSION="${GITHUB_REF_NAME#v}" ./scripts/sign_release.rb
+            TEBAKO_VERSION="${GITHUB_REF_NAME#v}" bundle exec tebako-release sign
 
   # The ONE release job per tag run. Spec 13 §2a's de-rendezvous moved
   # the publish + sign into the legs (write-once per-leg names — no
