@@ -8,7 +8,8 @@
 # legs), embed the tier-1 runtime manifest at /__tpkg__/manifest.yaml
 # (blob digest zeroed per the fixed-point rule) and the layout
 # declaration at /lib/tebako/layout.yaml, image with tfs-cli's
-# in-process dwarfs-t writer, then pair the env image with the wrapper
+# in-process writer (limnifs, the default format), then pair the env
+# image with the wrapper
 # exe (tebako-runtime-launcher — the tebako-owned process entry point,
 # spec 29) under the runtime naming grammar:
 #
@@ -224,18 +225,18 @@ mkdir -p "$ROOT"
 "$TAR" -xf "$ARCHIVE" -C "$ROOT" --strip-components="$STRIP"
 [ -x "$ROOT/bin/java$EXE_SUFFIX" ] || { echo "no bin/java$EXE_SUFFIX in the staged tree"; exit 1; }
 
-# The dwarfs-t writer has no symlink node type (verified 2026-09-06 on the
-# graalvm tree: a symlink lands as a 0-byte regular-file node that stat
-# cannot open — silent zeroing; named ecosystem follow-up: the writer
-# should either store link nodes or refuse loudly at write time). The
-# stage therefore dereferences every symlink whose terminal target is a
-# real file INSIDE the staged tree — the name surface stays upstream's,
-# the bytes are the target's. A dangling or tree-escaping link is a named
-# error here, never a silent 0-byte node in the image. (graalvm carries
+# Symlinks are dereferenced to plain files so the staged tree has ONE
+# shape on every platform (the step predates the limnifs writer, which
+# does carry symlink inodes; the deref is retained — content-addressed
+# drops dedup the duplicated content, and no leg depends on host symlink
+# semantics). Every link whose terminal target is a real file INSIDE the
+# staged tree is resolved — the name surface stays upstream's, the bytes
+# are the target's. A dangling or tree-escaping link is a named error
+# here, never a silent surprise in the image. (graalvm carries
 # five: bin/native-image*, lib/svm/bin/native-image-configure,
 # LICENSE_NATIVEIMAGE.txt; the temurin JRE carries none — same code path,
 # no-op there.)
-step "dereference in-tree symlinks (the writer has no link node type)"
+step "dereference in-tree symlinks (one tree shape on every platform)"
 resolve_link() {
   # $1 = a symlink's path; prints the terminal real file's absolute path.
   # Returns 2 on an absolute target (would escape the VFS root), 1 on a
@@ -324,10 +325,10 @@ sed -e "s|@@MOUNT_ROOT@@|$MOUNT_ROOT|g" \
     "$FEEDSTOCK/manifests/layout.yaml" > "$ROOT/lib/tebako/layout.yaml"
 
 # ------------------------------------------------------------------ image
-step "tfs mkimage (the in-process dwarfs-t writer)"
+step "tfs mkimage (the in-process writer — limnifs, the default format)"
 IMG="$OUT/$STEM.tfs"
 rm -f "$IMG"
-"$TFS_CLI" mkimage --format dwarfs "$ROOT" --output "$IMG"
+"$TFS_CLI" mkimage --format limnifs "$ROOT" --output "$IMG"
 sha=$(sha256_of "$IMG")
 echo "image: $IMG"
 echo "sha256: $sha"
