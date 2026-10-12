@@ -205,8 +205,15 @@ class RegistryUpdate # rubocop:disable Metrics/ClassLength
     implementation == DEFAULT_IMPLEMENTATION ? PAYLOAD_PREFIX : "#{PAYLOAD_PREFIX}-#{implementation}"
   end
 
+  # The asset-platform → triplet map covers the WHOLE leg set — the plain
+  # cartesian AND the include: arm (the temurin-only musl pair, #60) — via
+  # Feedstock.matrix_legs' [flavor, leg] pairs. The include legs publish
+  # shards like every other leg, so the fail-closed mapping must know them
+  # (the v2.8.28 tag run's audit died on exactly this: linux-musl-arm64
+  # paired only on the include arm).
   def asset_to_triplet
-    @asset_to_triplet ||= Feedstock.matrix_platforms(@env).to_h { |leg| [leg.asset_platform, leg.triplet] }
+    @asset_to_triplet ||= Feedstock.matrix_legs(@env)
+      .to_h { |_flavor, leg| [leg.asset_platform, leg.triplet] }
   end
 
   # The current registry on main (contents API — the canonical published
