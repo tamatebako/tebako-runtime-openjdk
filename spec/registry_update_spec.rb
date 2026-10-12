@@ -66,6 +66,13 @@ RSpec.describe RegistryUpdate do
               - {triplet: aarch64-macos, asset_platform: macos-arm64, exe_suffix: ""}
               - {triplet: x86_64-windows-ucrt, asset_platform: windows-ucrt64, exe_suffix: .exe}
               - {triplet: x86_64-linux-gnu, asset_platform: linux-gnu-x86_64, exe_suffix: ""}
+            # The asymmetric arm (the temurin-only musl pair, #60's shape):
+            # the asset-platform → triplet mapping must read these rows too.
+            include:
+              - flavor: temurin
+                platform: {triplet: x86_64-linux-musl, asset_platform: linux-musl-x86_64, exe_suffix: ""}
+              - flavor: temurin
+                platform: {triplet: aarch64-linux-musl, asset_platform: linux-musl-arm64, exe_suffix: ""}
   YAML
 
   # A release shard as tools/build writes it (the release's
@@ -319,6 +326,13 @@ RSpec.describe RegistryUpdate do
     shards = shards_of({ implementation: "temurin", java: "21.0.12", platform: "plan9-arm64" })
     expect { render(shards) }
       .to raise_error(RegistryUpdate::RegistryUpdateError, /unknown platform "plan9-arm64"/)
+  end
+
+  it "maps the include-arm platforms (the temurin musl pair) to their triplets" do
+    shards = shards_of({ implementation: "temurin", java: "21.0.12", platform: "linux-musl-arm64" })
+    doc = YAML.safe_load(render(shards))
+    row = doc.fetch("payloads").first.fetch("versions").first.fetch("platforms")
+    expect(row).to have_key("aarch64-linux-musl")
   end
 
   it "fails named when two shards claim the same triplet for one flavor" do
