@@ -193,6 +193,11 @@ jobs:
               exe_suffix: ""
               tar: tar
               container: ghcr.io/tamatebako/tpkg-builder-x86_64-linux-musl:v1
+              # The sign step runs on the gnu RUNNER (publish-side steps
+              # never enter the container): the signing tool must be the
+              # gnu tebako-pkg — a musl binary does not exec here
+              # (ENOENT: no musl loader — the first v2.8.28 tag run).
+              tool_platform: linux-gnu-x86_64
           - flavor: temurin
             platform:
               triplet: aarch64-linux-musl
@@ -201,6 +206,7 @@ jobs:
               exe_suffix: ""
               tar: tar
               container: ghcr.io/tamatebako/tpkg-builder-aarch64-linux-musl:v1
+              tool_platform: linux-gnu-arm64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -668,7 +674,7 @@ jobs:
           # The gem's signer is sign-only here: no adapter file, the repo
           # declaration rides the env (TebakoRelease::Config.from_env).
           TEBAKO_RELEASE_REPO: tamatebako/tebako-runtime-openjdk
-          TEBAKO_PKG_HOST_ID: ${{ matrix.platform.asset_platform }}
+          TEBAKO_PKG_HOST_ID: ${{ matrix.platform.tool_platform || matrix.platform.asset_platform }}
           TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
           TEBAKO_RELEASE_SIGNING_KEY: ${{ secrets.TEBAKO_RELEASE_SIGNING_KEY }}
         # RUNTIME_STEM flows from pins.rb's $GITHUB_ENV export — process
