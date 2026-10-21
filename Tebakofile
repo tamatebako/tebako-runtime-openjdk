@@ -59,6 +59,25 @@ flavors:
           url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_alpine-linux_hotspot_21.0.12_8.tar.gz"
           sha256: "a4f70d2be5c55940dd60b6636643a05125e60e6c3dbc2a8402032b0346744dfa"
           strip_components: 1
+        # x86_64-macos + aarch64-windows-ucrt — temurin only, same
+        # include:-arm shape as the musl pair above: graalvm-ce-builds'
+        # whole 25 line publishes exactly four assets (linux-x64,
+        # linux-aarch64, macos-aarch64, windows-x64 — verified against
+        # graal-25.3.4.1's listing and its 25.x siblings 2026-10-21), so
+        # the graalvm flavor has no sources for these triplets. The x64
+        # mac tarball nests <tag>/Contents/Home like its arm64 sibling;
+        # the win-arm64 JRE zip nests one dir like the x64 one, and its
+        # bin/ carries the same six .exe tools the windows surface
+        # declares. Digests cross-checked against Adoptium's .sha256.txt
+        # sidecars 2026-10-21.
+        - platform: "x86_64-macos"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_mac_hotspot_21.0.12_8.tar.gz"
+          sha256: "539706197baea8189c9a677aea5bf44671b74a71baa42dde436e312f2158fa3a"
+          strip_components: 3
+        - platform: "aarch64-windows-ucrt"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_windows_hotspot_21.0.12_8.zip"
+          sha256: "a50ed83b6a88d3127d406713f5057d78f845c3412d59e201dac6db37714af85c"
+          strip_components: 1
   graalvm:
     implementation: "graalvm"
     language_version: "25"
@@ -100,6 +119,13 @@ flavors:
           url: "https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.3.4.1/graalvm-community-jdk-25i3-25.0.4.1_linux-aarch64_bin.tar.gz"
           sha256: "7e8a3fbc2e4c28566107039a298cef690d86a37599a8e50536fc5a65b7f1bd56"
           strip_components: 1
+        # Coverage ceiling (verified 2026-10-21 against graal-25.3.4.1's
+        # listing and its 25.x siblings): upstream ships exactly these
+        # four platforms — no macos-x64, no windows-aarch64, no musl —
+        # so this flavor carries no x86_64-macos / aarch64-windows-ucrt
+        # sources and the matrix scopes both legs to temurin via its
+        # include: arm. A future upstream line gaining them flips the
+        # legs onto the plain flavor × platform cartesian.
 
 build:
   system: repack          # no compilation: unpack, prune, image
@@ -203,15 +229,17 @@ runtime:
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
   # download would be a supply-chain hole). Digests are the v2.8.47
-  # release's own asset digests (fetched 2026-10-20).
-  # release's monolith SHA256SUMS entries (fetched 2026-10-12).
+  # release's own asset digests (fetched 2026-10-20; the
+  # windows-ucrt-arm64 launcher ships since this line, tebako#830).
   wrapper_sha256:
     macos-arm64: "eeee3f7bff1f7b8bd3b17e624ab5856c4fb5d8edb446f79ab962b44bd5651704"
+    macos-x86_64: "53f192aa656d34f09affcae4b01ae0a35d88137c4e21e049c8951db435c65f94"
     linux-gnu-x86_64: "7829d1a1f221aeca7bd79be40ebf3999563cbcff436f961b40bc08772ff06d1b"
     linux-gnu-arm64: "6083e904f26feb3c3082ecdafa34e48c483772a44ddf98db06571fd2a0a0878c"
     linux-musl-x86_64: "eca258757ae3a3d1b88a8e9163978e43b58686c08ddcdc13434523efbacc7cae"
     linux-musl-arm64: "ca8fedb94cf6ec30cb001a7ace1c0437932cec858021afa3ad290784780609fd"
     windows-ucrt64: "4b65e5ae8da9035ece328a7ec308c5f6d567782aa69740169e2c735b071777a1"
+    windows-ucrt-arm64: "b675f24f961596d055d8d0b812c263b17a6ed027b987f7ad89f28a32b1288d3b"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
@@ -220,8 +248,8 @@ runtime:
 # tools/pins.rb reads this block into $GITHUB_ENV). The tfs pins are
 # cross-checked against the release's SHA256SUMS at fetch time; the
 # link-unit tarballs are NOT in that monolith, so these pins are their
-# single trust anchor (all pins verified against the v2.8.28 downloads
-# 2026-10-12).
+# single trust anchor (all pins verified against the v2.8.47 downloads
+# 2026-10-21).
 tools:
   repo: "tamatebako/tebako"
   release: "v2.8.47"
@@ -239,13 +267,16 @@ tools:
   sha256:
     tfs:
       macos-arm64: "ac5237214f610f89089684aa0041fdbd43fa929c237a0d716e9fa1dc5bcfa0fe"
+      macos-x86_64: "1d2b625c67c1d8af48e376f9aae4ecee5f991fa788f0ff88830cc0d2e3eb1169"
       linux-gnu-x86_64: "f1ea8235e713d4335c7666c2c337de8cdf6790810f3820d34ad206d39c383977"
       linux-gnu-arm64: "f4f2aa622a8322114a464f15c54e02b558d1cc8e5563154bcec608e2408fb29d"
       linux-musl-x86_64: "83941507c2d1b3558682b77b4cb284d940257ce43c84cc6aa4813c6769ac7497"
       linux-musl-arm64: "9da779ea0699f8ae27752416edb67f9856ba643079933ed80a53950733f0db28"
       windows-ucrt64: "96bf0560079faeacdf6bef4eee323810e688c329b0705fa68a21c81d22988e89"
+      windows-ucrt-arm64: "cde505d2f0fd225628f113157739486e4bb3878178bffe0769144bfed50cbf3b"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
       macos-arm64: "37f0546157e2fc9578afd812398c3a32e84b046351bd1c96419a322e890ec5cc"
+      macos-x86_64: "679b33a98f9d903b9bf187e7bd0e174754f70bc6df6204b23ddaac6c57f483a6"
       linux-gnu-x86_64: "4386fa6780c83b6225a6b41141cb5dd83edad85b1da08807f8a7a88643fb4e9d"
       linux-gnu-arm64: "6a9c002c3c6719217e98b121bd9ee4ff5b75bcf3a513030b8c8e9395b39fa9ae"
       linux-musl-x86_64: "0b8ebba73ed0b66f69e637e4683c1e2df006eef4176a4c4e8cdf5470c5d22d98"

@@ -5,9 +5,13 @@ name: build-payload
 # platforms aarch64-macos + x86_64-windows-ucrt + x86_64-linux-gnu +
 # aarch64-linux-gnu (native arm64 runner — no compilation anywhere in
 # this feedstock, so the leg needs nothing beyond the runner itself) plus
-# the temurin-only musl pair (x86_64-linux-musl + aarch64-linux-musl —
-# graalvm-ce-builds publishes no musl assets, so the musl legs ride the
-# matrix's include: arm). The musl legs run their fetch + build INSIDE
+# the temurin-only legs on the matrix's include: arm: the musl pair
+# (x86_64-linux-musl + aarch64-linux-musl), x86_64-macos (the
+# macos-15-intel runner), and aarch64-windows-ucrt (the windows-11-arm
+# runner) — graalvm-ce-builds' whole 25 line publishes exactly four
+# assets (linux-x64, linux-aarch64, macos-aarch64, windows-x64), so the
+# graalvm flavor covers none of these triplets. The musl legs run their
+# fetch + build INSIDE
 # the tpkg-builder container (alpine, musl libc — the pinned musl
 # binaries and the staged JRE execute only there); the arch-independent
 # steps (checkout, pins.rb, upload, the tag-run publish/sign/attest) stay
@@ -37,12 +41,16 @@ name: build-payload
 # runtime release flow).
 #
 # TRUST PLANE (both passes gate-off byte-identical — spec 00 invariant
-# 7): the windows legs Authenticode-sign the fetched wrapper exe IN-LEG
-# before tools/build pairs+hashes it (spec 34 §8.2 — sign-then-hash by
-# construction, never a re-hash), and on signing-enabled lines each leg
-# OpenPGP-signs its own served names right after publishing them
-# (spec 09 §5, the tebako-release gem's signer — Tebakofile's
-# tools.release_tooling pins it).
+# 7): the x64 windows leg Authenticode-signs the fetched wrapper exe
+# IN-LEG before tools/build pairs+hashes it (spec 34 §8.2 — sign-then-
+# hash by construction, never a re-hash). The win-arm64 leg ships
+# unsigned Authenticode by design — the Azure-signing arm64 story is the
+# product repo's phase-3 item (its own arm64 ship leg carries no signing
+# boundary either), and unsigned stays first-class — while every leg,
+# win-arm64 included, OpenPGP-signs its own served names right after
+# publishing them on signing-enabled lines (spec 09 §5, the
+# tebako-release gem's signer — Tebakofile's tools.release_tooling pins
+# it).
 #
 # PIN DISCIPLINE (the owner's rule): this workflow carries NO version or
 # digest literals. Tebakofile is the SSOT — the `tools:` block pins the
@@ -134,8 +142,8 @@ jobs:
       # with the publish/sign steps — tag runs only; disarmed otherwise).
       attestations: write
     # Spec 34's attestation boundary (see the id-token note above). The
-    # build job is shared by every platform's legs — only the windows
-    # legs ever arm the signing chain, but ALL legs carry the
+    # build job is shared by every platform's legs — only the x64 windows
+    # leg ever arms the signing chain, but ALL legs carry the
     # environment: it must NEVER gain required reviewers (that would gate
     # every platform's build on an approval); protection rules stay
     # empty.
@@ -172,10 +180,12 @@ jobs:
             os: ubuntu-24.04-arm
             exe_suffix: ""
             tar: tar
-        # The temurin-only musl pair (graalvm-ce-builds publishes no musl
-        # assets — verified against graal-25.3.4.1's listing): legs the
-        # plain flavor × platform cartesian cannot express, so they ride
-        # include: rows pinning flavor + a full platform row. `container`
+        # The temurin-only legs (the asymmetric surface — graalvm-ce-builds
+        # publishes no musl assets and, across its whole 25 line, no
+        # macos-x64 / windows-aarch64 assets either; verified against
+        # graal-25.3.4.1's listing 2026-10-21): legs the plain flavor ×
+        # platform cartesian cannot express, so they ride include: rows
+        # pinning flavor + a full platform row. The musl legs' `container`
         # names the tpkg-builder image the leg's fetch + build run inside
         # (the tr-python container-leg idiom: a musl binary cannot
         # execute on the gnu host, and tools/build's smokes execute the
@@ -207,6 +217,33 @@ jobs:
               tar: tar
               container: ghcr.io/tamatebako/tpkg-builder-aarch64-linux-musl:v1
               tool_platform: linux-gnu-arm64
+          # The Intel macOS leg rides the macos-15-intel runner (macos-13
+          # is retired; the product repo's release.yml runs its
+          # macos-x86_64 legs on this label).
+          - flavor: temurin
+            platform:
+              triplet: x86_64-macos
+              asset_platform: macos-x86_64
+              os: macos-15-intel
+              exe_suffix: ""
+              tar: tar
+          # The win-arm64 leg rides the windows-11-arm runner (the label
+          # the product repo's windows-arm64 ship leg uses — tebako
+          # release.yml). That runner is single-disk: the workspace sits
+          # on C: and there is NO D: drive (the x64 leg's /d/a/_temp
+          # idiom died there — tebako run 35500262780), and its image
+          # hosts Ruby + gh CLI on PATH, so the leg needs NO msys2 at
+          # all: the upstream zip rides the OS's in-box bsdtar
+          # (C:\Windows\System32\tar.exe, native arm64 — GNU tar cannot
+          # read it, which is exactly the x64 leg's ucrt64-bsdtar
+          # constraint).
+          - flavor: temurin
+            platform:
+              triplet: aarch64-windows-ucrt
+              asset_platform: windows-ucrt-arm64
+              os: windows-11-arm
+              exe_suffix: .exe
+              tar: /c/Windows/System32/tar.exe
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -554,14 +591,19 @@ jobs:
           TEBAKO_RELEASE_SIGNING_KEYID: ${{ vars.TEBAKO_RELEASE_SIGNING_KEYID }}
         # WRAPPER_BIN (the fetch step) and PRELOAD_SHIM (pins.rb, POSIX
         # only) flow through $GITHUB_ENV — process env, not the static
-        # env: context. The windows leg runs a closed PATH: the runner's
+        # env: context. The windows legs run a closed PATH: the runner's
         # default PATH carries several stray mingw installs, and keeping
         # them out of DLL/tool resolution removes a whole silent-failure
-        # class.
+        # class. The x64 leg's msys2 dir is D:-anchored; the arm64 runner
+        # is single-disk (C:) and carries no leg-installed msys2 at all
+        # (its zip rides the in-box System32 tar.exe).
         run: |
-          if [ "${{ matrix.platform.triplet }}" = "x86_64-windows-ucrt" ]; then
-            export PATH="/d/a/_temp/msys64/ucrt64/bin:/c/Program Files/Git/usr/bin:/c/Program Files/Git/cmd:/c/Windows/System32"
-          fi
+          case "${{ matrix.platform.triplet }}" in
+            x86_64-windows-ucrt)
+              export PATH="/d/a/_temp/msys64/ucrt64/bin:/c/Program Files/Git/usr/bin:/c/Program Files/Git/cmd:/c/Windows/System32" ;;
+            aarch64-windows-ucrt)
+              export PATH="/c/Program Files/Git/usr/bin:/c/Program Files/Git/cmd:/c/Windows/System32" ;;
+          esac
           tools/build
 
       - name: Upload payload
@@ -572,11 +614,27 @@ jobs:
           retention-days: 7
 
       - name: Setup Ruby for the release tooling
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform.triplet != 'aarch64-windows-ucrt'
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: '3.3'
           bundler-cache: true
+
+      # The win-arm64 leg: ruby/setup-ruby publishes no windows-arm64
+      # builds (the product repo's arm64 ship leg died in exactly that
+      # step — tebako run 35501035272), but the windows-11-arm image
+      # itself hosts Ruby on PATH (3.4 — the Language and Runtime
+      # section), so the tooling bundles with the hosted ruby. The gem
+      # set is pure-ruby (octokit/base64 + the tebako-release tooling
+      # gem, required_ruby >= 3.3); the bundle path rides RUNNER_TEMP,
+      # never the workspace (the publish/attest steps glob it).
+      - name: Bundle the release tooling (win-arm64 — the runner's hosted Ruby)
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform.triplet == 'aarch64-windows-ucrt'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle config set --local path "$RUNNER_TEMP/bundle"
+          bundle install --jobs 4
 
       # Spec 13 §2a (the de-rendezvous): the leg that built a
       # pair publishes it — the write-once names THIS leg owns alone (the

@@ -114,11 +114,13 @@ module Feedstock
 
   # The matrix's include: arm — the legs OUTSIDE the plain flavor ×
   # platform cartesian (the asymmetric surface: graalvm-ce-builds
-  # publishes no musl assets, so the musl legs exist for temurin only and
-  # ride include rows that pin flavor + a full platform row). Each row
-  # must pair a flavor the axis declares with a platform row carrying the
-  # three spellings; an include that re-pairs a cartesian (flavor,
-  # triplet) is a named refusal (that leg belongs on the plain axes —
+  # publishes no musl assets and no macos-x64 / windows-aarch64 assets,
+  # so the musl pair, x86_64-macos, and aarch64-windows-ucrt exist for
+  # temurin only and ride include rows that pin flavor + a full platform
+  # row). Each row must pair a flavor the axis declares with a platform
+  # row carrying the three spellings; an include that re-pairs a
+  # cartesian (flavor, triplet) is a named refusal (that leg belongs on
+  # the plain axes —
   # GitHub would merge it into the existing leg, and the model would
   # double-count it). Absent include: is fine (the pre-musl shape); any
   # other unrecognized shape is a named refusal, never a guess.
