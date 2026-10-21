@@ -36,7 +36,8 @@ RSpec.describe ReleaseAudit do
 
   # The feedstock fixtures: a mini Tebakofile + a mini build-payload
   # workflow whose matrix block mirrors the real one's shape (2 flavors ×
-  # 3 platforms + the include arm's 2 temurin-only musl legs). Feedstock
+  # 3 platforms + the include arm's 4 temurin-only legs: the musl pair,
+  # x86_64-macos, aarch64-windows-ucrt). Feedstock
   # parses these; the expected names below are written out literally, so
   # a misread fixture fails the clean case.
   RECIPE_FIXTURE = <<~YAML
@@ -71,6 +72,10 @@ RSpec.describe ReleaseAudit do
                 platform: {triplet: x86_64-linux-musl, asset_platform: linux-musl-x86_64, exe_suffix: ""}
               - flavor: temurin
                 platform: {triplet: aarch64-linux-musl, asset_platform: linux-musl-arm64, exe_suffix: ""}
+              - flavor: temurin
+                platform: {triplet: x86_64-macos, asset_platform: macos-x86_64, exe_suffix: ""}
+              - flavor: temurin
+                platform: {triplet: aarch64-windows-ucrt, asset_platform: windows-ucrt-arm64, exe_suffix: .exe}
   YAML
 
   # tebako#716: the stem carries the flavor's implementation (the
@@ -82,11 +87,12 @@ RSpec.describe ReleaseAudit do
   end
 
   # The whole expected matrix, written out: (2 flavors × 3 platforms +
-  # the include arm's 2 temurin musl legs) × the pair + sidecars + shard
-  # = 40 write-once names (spec 13 §2a).
+  # the include arm's 4 temurin-only legs) × the pair + sidecars + shard
+  # = 50 write-once names (spec 13 §2a).
   def all_names
     [%w[temurin 21.0.12 macos-arm64], ["temurin", "21.0.12", "windows-ucrt64", ".exe"], %w[temurin 21.0.12 linux-gnu-x86_64],
      %w[temurin 21.0.12 linux-musl-x86_64], %w[temurin 21.0.12 linux-musl-arm64],
+     %w[temurin 21.0.12 macos-x86_64], ["temurin", "21.0.12", "windows-ucrt-arm64", ".exe"],
      %w[graalvm 25.0.4.1 macos-arm64], ["graalvm", "25.0.4.1", "windows-ucrt64", ".exe"], %w[graalvm 25.0.4.1 linux-gnu-x86_64]]
       .flat_map { |impl, java, platform, suffix| leg_names(impl, java, platform, suffix.to_s) }
   end
@@ -112,16 +118,18 @@ RSpec.describe ReleaseAudit do
   it "derives the expected matrix from the workflow matrix x recipe pins" do
     audit_for(all_names) do |audit|
       expect(audit.expected_names).to match_array(all_names)
-      expect(audit.expected_names.size).to eq(40)
+      expect(audit.expected_names.size).to eq(50)
     end
   end
 
-  it "reads the matrix include: arm's legs — and never invents the graalvm musl legs it omits" do
+  it "reads the matrix include: arm's legs — and never invents the graalvm legs it omits" do
     audit_for(all_names) do |audit|
       expect(audit.expected_names)
         .to include("tebako-runtime-9.9.9-temurin-21.0.12-linux-musl-x86_64.tfs",
-                    "tebako-runtime-9.9.9-temurin-21.0.12-linux-musl-arm64.tfs")
-      expect(audit.expected_names.grep(/graalvm.*musl/)).to be_empty
+                    "tebako-runtime-9.9.9-temurin-21.0.12-linux-musl-arm64.tfs",
+                    "tebako-runtime-9.9.9-temurin-21.0.12-macos-x86_64.tfs",
+                    "tebako-runtime-9.9.9-temurin-21.0.12-windows-ucrt-arm64.tfs")
+      expect(audit.expected_names.grep(/graalvm.*(musl|macos-x86_64|ucrt-arm64)/)).to be_empty
     end
   end
 
@@ -154,7 +162,7 @@ RSpec.describe ReleaseAudit do
   it "adds every served name's own .asc when the line signs (spec 09 §5's no-fold rule)" do
     audit_for(all_names, env_extra: { "TEBAKO_RELEASE_SIGNING_ENABLED" => "true" }) do |audit|
       expected = audit.expected_names(signing: true)
-      expect(expected.size).to eq(80)
+      expect(expected.size).to eq(100)
       expect(expected).to include("tebako-runtime-9.9.9-temurin-21.0.12-macos-arm64.tfs.asc",
                                   "tebako-runtime-9.9.9-graalvm-25.0.4.1-windows-ucrt64.exe.asc")
     end
