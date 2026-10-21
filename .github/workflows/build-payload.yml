@@ -232,11 +232,11 @@ jobs:
           # release.yml). That runner is single-disk: the workspace sits
           # on C: and there is NO D: drive (the x64 leg's /d/a/_temp
           # idiom died there — tebako run 35500262780), and its image
-          # hosts Ruby + gh CLI on PATH, so the leg needs NO msys2 at
-          # all: the upstream zip rides the OS's in-box bsdtar
-          # (C:\Windows\System32\tar.exe, native arm64 — GNU tar cannot
-          # read it, which is exactly the x64 leg's ucrt64-bsdtar
-          # constraint).
+          # hosts Ruby + gh CLI on PATH. The zip extract itself needs no
+          # msys2 (the OS's in-box bsdtar — C:\Windows\System32\tar.exe,
+          # native arm64 — reads it, which is exactly the x64 leg's
+          # ucrt64-bsdtar constraint); the tag-run bundle step's compile
+          # (json's C extension) gets a clangarm64 toolchain below.
           - flavor: temurin
             platform:
               triplet: aarch64-windows-ucrt
@@ -259,6 +259,23 @@ jobs:
           msystem: ucrt64
           path-type: minimal
           install: mingw-w64-ucrt-x86_64-libarchive mingw-w64-ucrt-x86_64-gcc-libs
+
+      # The win-arm64 leg's tag-run bundle step compiles json's C
+      # extension on the hosted Ruby (faraday → json; json publishes no
+      # mingw precompiled gem on any version): the hosted ruby is MSYS2's
+      # clangarm64 build, and the runner carries no C toolchain — the
+      # v2.8.49 tag run's mkmf probe died on exactly that. The gcc
+      # package is a virtual resolved through gcc-compat (the full clang
+      # toolchain closure); make is the MSYS one (the hosted ruby's
+      # rbconfig names no MAKE, so rubygems' ext builder falls back to
+      # plain `make`, which only /usr/bin carries).
+      - name: Set up MSys2 (clangarm64 C toolchain — the bundle step's compile)
+        if: matrix.platform.triplet == 'aarch64-windows-ucrt'
+        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
+        with:
+          msystem: clangarm64
+          path-type: minimal
+          install: mingw-w64-clang-aarch64-gcc make
 
       # Tebakofile's tools block is the toolchain pin SSOT; pins.rb emits
       # TEBAKO_RELEASE, PKG_NAME/PKG_VERSION, the per-platform
@@ -633,6 +650,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The msys2 root derives from $RUNNER_TEMP (setup-msys2 installs
+          # under it), never a literal drive — the arm64 runner is
+          # single-disk (C:). The compile needs both bin dirs:
+          # clangarm64/bin for the toolchain, /usr/bin for make.
+          export PATH="$(cygpath "$RUNNER_TEMP")/msys64/clangarm64/bin:$(cygpath "$RUNNER_TEMP")/msys64/usr/bin:$PATH"
           bundle config set --local path "$RUNNER_TEMP/bundle"
           bundle install --jobs 4
 
