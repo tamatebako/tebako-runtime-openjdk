@@ -191,7 +191,14 @@ module Feedstock
   def leg_asset_names(flavor, leg, env = ENV)
     stem = runtime_stem(flavor, leg.asset_platform, env)
     exe = "#{stem}#{leg.exe_suffix}"
-    [exe, "#{exe}.sha256", "#{stem}.tfs", "#{stem}.tfs.sha256", "#{stem}.manifest.json"]
+    # The blksum sidecar and its own .sha256 are SERVED names (spec 39 §3):
+    # the lazy mount verifies the sidecar against the row's pin before the
+    # first range read, and delta has nothing to compare without it
+    # (tebako#868).
+    [exe, "#{exe}.sha256",
+     "#{stem}.tfs", "#{stem}.tfs.sha256",
+     "#{stem}.tfs.blksum.json", "#{stem}.tfs.blksum.json.sha256",
+     "#{stem}.manifest.json"]
   end
 
   # Every leg's write-once names across the whole build matrix (the plain

@@ -720,7 +720,7 @@ jobs:
             echo "::error::the release shard $out/$stem.manifest.json is not valid JSON — refusing to publish"
             exit 1
           }
-          for name in "$exe" "$exe.sha256" "$stem.tfs" "$stem.tfs.sha256" "$stem.manifest.json"; do
+          for name in "$exe" "$exe.sha256" "$stem.tfs" "$stem.tfs.sha256" "$stem.tfs.blksum.json" "$stem.tfs.blksum.json.sha256" "$stem.manifest.json"; do
             f="$out/$name"
             [ -f "$f" ] || { echo "::error::leg output $f missing — tools/build did not produce it"; exit 1; }
             want="$(sha256_of "$f")"
@@ -780,7 +780,7 @@ jobs:
           stem="$RUNTIME_STEM"
           exe="$stem${{ matrix.platform.exe_suffix }}"
           mkdir -p attest-staging
-          for name in "$exe" "$exe.sha256" "$stem.tfs" "$stem.tfs.sha256" "$stem.manifest.json"; do
+          for name in "$exe" "$exe.sha256" "$stem.tfs" "$stem.tfs.sha256" "$stem.tfs.blksum.json" "$stem.tfs.blksum.json.sha256" "$stem.manifest.json"; do
             cp "$out/$name" attest-staging/
           done
           # The detached .asc set, when the signing arm ran (the signer

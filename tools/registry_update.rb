@@ -198,7 +198,21 @@ class RegistryUpdate # rubocop:disable Metrics/ClassLength
     end
 
     image = entry.fetch("image")
-    [triplet, { "artifact" => image.fetch("filename"), "sha256" => image.fetch("sha256") }]
+    row = { "artifact" => image.fetch("filename"), "sha256" => image.fetch("sha256") }
+    # The lazy-mount sidecar's own pin (spec 39 §3, registry MINOR 4): the
+    # row mirrors the shard's `image.blksum`, so a resolver verifies the
+    # sidecar BEFORE the first range read. Additive — a shard without the
+    # block renders exactly as before (a pre-sidecar line).
+    blksum = image["blksum"]
+    unless blksum.nil?
+      unless blksum.is_a?(Hash) && blksum["filename"].is_a?(String) && blksum["sha256"].is_a?(String)
+        raise RegistryUpdateError,
+              "NAMED FAILURE: shard #{asset_name}'s image.blksum must carry {filename, sha256} " \
+              "(spec 39 §3's pin shape) — republish the leg"
+      end
+      row["blksum"] = { "filename" => blksum["filename"], "sha256" => blksum["sha256"] }
+    end
+    [triplet, row]
   end
 
   def payload_name(implementation)
