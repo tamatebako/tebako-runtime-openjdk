@@ -354,6 +354,19 @@ sha=$(sha256_of "$IMG")
 echo "image: $IMG"
 echo "sha256: $sha"
 
+# The lazy-mount digest sidecar (spec 39 §3): derived from the SERVED bytes
+# by the pinned tfs CLI's own blksum verb — the same emitter `tebako blksum`
+# and `tebako publish` call, never a second implementation of the group
+# scheme. Without it the install falls back to the eager whole-file fetch
+# and delta can never engage (tebako#868).
+step "blksum sidecar (the lazy mount's per-group digests)"
+"$TFS_CLI" blksum "$IMG" > /dev/null
+BLK="$IMG.blksum.json"
+[ -f "$BLK" ] || { echo "tfs blksum produced no $BLK — refusing to publish an image without its sidecar"; exit 1; }
+blk_sha=$(sha256_of "$BLK")
+echo "blksum: $BLK"
+echo "sha256: $blk_sha"
+
 # ---------------------------------------------------------------- wrapper
 step "pair the wrapper exe ($STEM$EXE_SUFFIX)"
 [ -n "$WRAPPER_BIN" ] && [ -f "$WRAPPER_BIN" ] || {
@@ -377,6 +390,7 @@ echo "sha256: $exe_sha"
 # release job's audit).
 step "sidecars (.sha256) + the release shard (<stem>.manifest.json)"
 printf '%s  %s\n' "$sha" "$STEM.tfs" > "$IMG.sha256"
+printf '%s  %s\n' "$blk_sha" "$STEM.tfs.blksum.json" > "$BLK.sha256"
 printf '%s  %s\n' "$exe_sha" "$STEM$EXE_SUFFIX" > "$EXE_OUT.sha256"
 # The signature declarations (spec 13 §2a / spec 09 §5): keyid is the
 # signer's 16-lowercase-hex PRIMARY keyid (spec 09 §9), flowed from the
@@ -426,7 +440,8 @@ cat > "$OUT/$STEM.manifest.json" <<EOF
   "image": {
     "filename": "$STEM.tfs",
     "sha256": "$sha",
-    "size_bytes": $(filesize "$IMG")$IMG_SIG
+    "size_bytes": $(filesize "$IMG"),
+    "blksum": {"filename": "$STEM.tfs.blksum.json", "sha256": "$blk_sha"}$IMG_SIG
   }
 }
 EOF

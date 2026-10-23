@@ -83,12 +83,15 @@ RSpec.describe ReleaseAudit do
   def leg_names(implementation, java_version, asset_platform, exe_suffix)
     stem = "tebako-runtime-#{version}-#{implementation}-#{java_version}-#{asset_platform}"
     exe = "#{stem}#{exe_suffix}"
-    [exe, "#{exe}.sha256", "#{stem}.tfs", "#{stem}.tfs.sha256", "#{stem}.manifest.json"]
+    [exe, "#{exe}.sha256",
+     "#{stem}.tfs", "#{stem}.tfs.sha256",
+     "#{stem}.tfs.blksum.json", "#{stem}.tfs.blksum.json.sha256",
+     "#{stem}.manifest.json"]
   end
 
   # The whole expected matrix, written out: (2 flavors × 3 platforms +
   # the include arm's 4 temurin-only legs) × the pair + sidecars + shard
-  # = 50 write-once names (spec 13 §2a).
+  # = 70 write-once names (spec 13 §2a; the blksum pair is tebako#868's).
   def all_names
     [%w[temurin 21.0.12 macos-arm64], ["temurin", "21.0.12", "windows-ucrt64", ".exe"], %w[temurin 21.0.12 linux-gnu-x86_64],
      %w[temurin 21.0.12 linux-musl-x86_64], %w[temurin 21.0.12 linux-musl-arm64],
@@ -118,7 +121,7 @@ RSpec.describe ReleaseAudit do
   it "derives the expected matrix from the workflow matrix x recipe pins" do
     audit_for(all_names) do |audit|
       expect(audit.expected_names).to match_array(all_names)
-      expect(audit.expected_names.size).to eq(50)
+      expect(audit.expected_names.size).to eq(70)
     end
   end
 
@@ -162,7 +165,7 @@ RSpec.describe ReleaseAudit do
   it "adds every served name's own .asc when the line signs (spec 09 §5's no-fold rule)" do
     audit_for(all_names, env_extra: { "TEBAKO_RELEASE_SIGNING_ENABLED" => "true" }) do |audit|
       expected = audit.expected_names(signing: true)
-      expect(expected.size).to eq(100)
+      expect(expected.size).to eq(140)
       expect(expected).to include("tebako-runtime-9.9.9-temurin-21.0.12-macos-arm64.tfs.asc",
                                   "tebako-runtime-9.9.9-graalvm-25.0.4.1-windows-ucrt64.exe.asc")
     end
