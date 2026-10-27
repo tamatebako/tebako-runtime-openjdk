@@ -1,0 +1,88 @@
+# The openjdk release monitor (propose-bump shape) — the bun/node
+# factories' monitor, adapted to this recipe's two flavors: temurin's
+# upstream is adoptium/temurin21-binaries (line = the JDK major, 21) and
+# graalvm's is graalvm/graalvm-ce-builds (line = its own release line,
+# 25.3). Daily: tools/monitor asks each flavor's upstream for the newest
+# release ON THE PINNED LINE and rewrites the flavor's version/build pins
+# and its source url:/sha256: lines; this workflow turns the dirty tree
+# into a pull request. A newer release on a NEWER line is reported and
+# deliberately not crossed. Never merges — the bump PR rides the lint gate
+# and merges like every other PR.
+name: release-monitor
+
+on:
+  schedule:
+    # Off the :00/:30 herd; distinct from tamatebako/ruby's 17 6,
+    # tebako-runtime-node's 41 6 and tebako-runtime-bun's 53 6.
+    - cron: "19 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    name: propose the next openjdk pin
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.monitor.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: check upstream + rewrite the pins
+        id: monitor
+        # GH_TOKEN authenticates the api.github.com calls: an anonymous
+        # request shares the runner IP's quota and answers 403 under load
+        # (the 2026-10-23 bun run, tamatebako/tebako-runtime-bun#30). The
+        # monitor retries a quota answer (403/429) with Retry-After /
+        # x-ratelimit-reset and names it when it survives; a 404 stays a
+        # dead upstream.
+        env:
+          GH_TOKEN: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
+        run: |
+          set -euo pipefail
+          ruby tools/monitor | tee monitor-result.json
+          {
+            echo "verdict<<VERDICT_JSON_EOF"
+            cat monitor-result.json
+            echo "VERDICT_JSON_EOF"
+          } >> "$GITHUB_OUTPUT"
+          cat monitor-result.json >> "$GITHUB_STEP_SUMMARY"
+
+      # The body names what moved: flavor line, version, build, the assets
+      # re-pinned and where each digest came from. Rendered from the
+      # verdict itself so the PR and the run never disagree.
+      - name: render the bump pull request body
+        run: |
+          set -euo pipefail
+          ruby tools/monitor --pr-body monitor-result.json | tee pr-body.md
+          cat pr-body.md >> "$GITHUB_STEP_SUMMARY"
+
+      # A GITHUB_TOKEN-authored PR never triggers on:pull_request
+      # workflows (GitHub's anti-recursion rule) — the lint gate's required
+      # context then never reports and the PR blocks forever (the
+      # tebako-runtime-bun 1.4.3 bump needed an admin merge for exactly
+      # this). The suite registry PRs' established pattern: author with the
+      # org PAT so CI runs like on any human PR. add-paths keeps the commit
+      # to the recipe alone — never the runner's .bundle config
+      # (bundler-cache writes one), never the run's monitor-result.json or
+      # pr-body.md. No auto-merge.
+      - name: open the bump pull request
+        if: fromJSON(steps.monitor.outputs.verdict).action == 'bump'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
+          branch: monitor/openjdk-pin
+          add-paths: Tebakofile
+          title: ${{ fromJSON(steps.monitor.outputs.verdict).title }}
+          commit-message: ${{ fromJSON(steps.monitor.outputs.verdict).title }}
+          body-path: pr-body.md
