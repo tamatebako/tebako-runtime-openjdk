@@ -25,24 +25,24 @@ flavors:
       # platform (repack: no compilation). platform is the spec 03 triplet;
       # strip_components is the nesting depth of the payload root inside the
       # archive (macOS nests under <tag>/Contents/Home, windows under one dir).
-      version: "21.0.12"
-      build: "8"            # the Temurin build number (21.0.12+8)
+      version: "21.0.12.1"
+      build: "1"            # the Temurin build number (21.0.12+8)
       sources:
         - platform: "aarch64-macos"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12_8.tar.gz"
-          sha256: "36bb71d6fa5184e12a6483e7662783c2cbd383f5dca8034140f0a84dd5aa797d"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz"
+          sha256: "dec50fc6f9fcd4fe3ae8cabf5a5fa68f6afc48841f7698e468e9aa5d54beed84"
           strip_components: 3
         - platform: "x86_64-windows-ucrt"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_windows_hotspot_21.0.12_8.zip"
-          sha256: "b8aa18fef5edb69bee8618f99677d66d0873d22cb40d974c15ac9ffcdecf73ba"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip"
+          sha256: "d35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636"
           strip_components: 1
         - platform: "x86_64-linux-gnu"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_linux_hotspot_21.0.12_8.tar.gz"
-          sha256: "8a379a67c91a3ae61ffb33d46e0a40c7ba35e70713c4db31cfca30492f792eff"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_linux_hotspot_21.0.12.1_1.tar.gz"
+          sha256: "2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500"
           strip_components: 1
         - platform: "aarch64-linux-gnu"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12_8.tar.gz"
-          sha256: "5f9c96b656827b9d14ebeda7739e25be554fa6d25669b03847c1df6e869c0679"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz"
+          sha256: "14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2"
           strip_components: 1
         # The musl (alpine) pair — temurin only: graalvm-ce-builds
         # publishes NO musl assets (verified against graal-25.3.4.1's
@@ -52,12 +52,12 @@ flavors:
         # Digests cross-checked against Adoptium's .sha256.txt sidecars
         # 2026-10-08; the alpine tarballs nest one dir like the gnu ones.
         - platform: "x86_64-linux-musl"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_alpine-linux_hotspot_21.0.12_8.tar.gz"
-          sha256: "9a7f8712a2741bb14e2452eed2de99f62d02e05617e27d59f1861a0cdad58486"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_alpine-linux_hotspot_21.0.12.1_1.tar.gz"
+          sha256: "7bc7c2f9ba5ffea5f727e14581964bd54294b8edc2be9a79ea6393f8d0799200"
           strip_components: 1
         - platform: "aarch64-linux-musl"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_alpine-linux_hotspot_21.0.12_8.tar.gz"
-          sha256: "a4f70d2be5c55940dd60b6636643a05125e60e6c3dbc2a8402032b0346744dfa"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_alpine-linux_hotspot_21.0.12.1_1.tar.gz"
+          sha256: "98e15ae359e1f87160ee4c0abb43336513e41712d439fd4a805a5474af32b2c7"
           strip_components: 1
         # x86_64-macos + aarch64-windows-ucrt — temurin only, same
         # include:-arm shape as the musl pair above: graalvm-ce-builds'
@@ -71,12 +71,12 @@ flavors:
         # declares. Digests cross-checked against Adoptium's .sha256.txt
         # sidecars 2026-10-21.
         - platform: "x86_64-macos"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_mac_hotspot_21.0.12_8.tar.gz"
-          sha256: "539706197baea8189c9a677aea5bf44671b74a71baa42dde436e312f2158fa3a"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_mac_hotspot_21.0.12.1_1.tar.gz"
+          sha256: "6717ec641fd9ce0bb209ca083ee23b42202ac68cb6fcc5753496e0e4a0f41989"
           strip_components: 3
         - platform: "aarch64-windows-ucrt"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_windows_hotspot_21.0.12_8.zip"
-          sha256: "a50ed83b6a88d3127d406713f5057d78f845c3412d59e201dac6db37714af85c"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_windows_hotspot_21.0.12.1_1.zip"
+          sha256: "e82cc17e0bf89a25b0b0ed106d072f2ea420587d0a6870534b71b1dce3ae28c3"
           strip_components: 1
   graalvm:
     implementation: "graalvm"
