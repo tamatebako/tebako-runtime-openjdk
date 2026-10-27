@@ -903,6 +903,38 @@ jobs:
           fi
           gh pr merge --auto --squash "$branch" || gh pr merge --squash "$branch"
 
+          # Immediacy, not correctness (tebako-packages/registry#5). The
+          # official aggregate polls every six hours, so a publish stays
+          # invisible to `tebako install` until the next tick. The dispatch is
+          # fired only AFTER the row is on main (the aggregate reads the
+          # feedstock's registry at its default branch); a dispatch that cannot
+          # be delivered warns and leaves the cron as the floor.
+          - name: Nudge the official registry's aggregate
+            env:
+              GH_TOKEN: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
+            run: |
+              set -uo pipefail
+              if [ -z "${GH_TOKEN:-}" ]; then
+                echo "::warning::TEBAKO_CI_PAT_TOKEN is unset — the aggregate picks this publish up on its six-hourly tick"
+                exit 0
+              fi
+              branch="publish/${{ github.ref_name }}-registry"
+              state=""
+              for _ in $(seq 1 30); do
+                state=$(gh pr view "$branch" --json state --jq .state 2>/dev/null || echo "")
+                [ "$state" = "MERGED" ] && break
+                sleep 10
+              done
+              if [ "$state" != "MERGED" ]; then
+                echo "::warning::the registry row is not on main yet ($state) — the six-hourly tick catches it"
+                exit 0
+              fi
+              gh api repos/tebako-packages/registry/dispatches \
+                -f event_type=feedstock-published \
+                -f client_payload[feedstock]="${{ github.repository }}" \
+                -f client_payload[tag]="${{ github.ref_name }}" \
+                || echo "::warning::the aggregate dispatch failed — the six-hourly tick still catches it"
+
   # The terminal aggregate — and the branch-protection gate. The build
   # legs are a dynamic matrix whose check names shift with the matrix
   # vocabulary (a new flavor or triplet renames every leg), so branch
