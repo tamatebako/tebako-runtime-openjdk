@@ -26,7 +26,7 @@ flavors:
       # strip_components is the nesting depth of the payload root inside the
       # archive (macOS nests under <tag>/Contents/Home, windows under one dir).
       version: "21.0.12.1"
-      build: "1"            # the Temurin build number (21.0.12+8)
+      build: "1"            # the Temurin build number, the "+N" of the tag's <version>+N
       sources:
         - platform: "aarch64-macos"
           url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz"
