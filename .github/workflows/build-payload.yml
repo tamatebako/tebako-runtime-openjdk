@@ -68,6 +68,12 @@ name: build-payload
 on:
   push:
     branches: [main]
+    # A registry-bot or docs-only merge cannot change a build's outcome, so
+    # it does not re-run the matrix (tebako#866). GitHub does not evaluate
+    # path filters for tag pushes, so a release tag still builds.
+    paths-ignore:
+      - tpkg-registry.yaml
+      - "**/*.md"
     tags: ["*"]
   pull_request:
   workflow_dispatch:
