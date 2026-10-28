@@ -31,12 +31,14 @@ name: build-payload
 # reference derivation). The ONE release
 # job keeps only the duties that need the whole matrix: the read-only
 # AUDIT (tools/audit_release.rb) and the registry render
-# (tools/registry_update.rb) landed by bot PR. The bot PR rides the CI
-# PAT (tebako#686): a GITHUB_TOKEN-authored PR never triggers
-# pull_request workflows, so its required checks would pend forever and
-# auto-merge never fire — and the legs below skip the bot PR's
-# registry-only file set, leaving the lint gate's registry parse as its
-# meaningful check. `tebako publish` is NOT
+# (tools/registry_update.rb) landed by bot PR. The bot PR rides the
+# tebako-fleet App's installation token (tebako#686, tebako-release#3):
+# a GITHUB_TOKEN-authored PR never triggers pull_request workflows, so
+# its required checks would pend forever and auto-merge never fire — and
+# an App token carries its own rate budget instead of spending a shared
+# user PAT. The legs below skip the bot PR's registry-only file set,
+# leaving the lint gate's registry parse as its meaningful check.
+# `tebako publish` is NOT
 # used: the CLI refuses kind: runtime (runtimes publish through the
 # runtime release flow).
 #
@@ -820,11 +822,30 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      # The checkout rides the CI PAT so the registry bot branch's push
-      # is the PAT's doing as well (tebako#686 — the publish step below).
+      # The fleet identity (tebako-release#3): installation tokens of the
+      # tebako-fleet App — own rate budget, and app-pushed branches fire
+      # pull_request CI (a GITHUB_TOKEN never does). The registry-org
+      # token is minted for the tebako-packages installation because the
+      # aggregate nudge dispatches into tebako-packages/registry. Minted
+      # before the checkout: the checkout itself rides the fleet token so
+      # the registry bot branch's push is the App's doing as well
+      # (tebako#686 — the publish step below).
+      - name: Mint the fleet token
+        id: fleet
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.TEBAKO_CI_APP_ID }}
+          private-key: ${{ secrets.TEBAKO_CI_APP_PRIVATE_KEY }}
+      - name: Mint the registry-org token
+        id: fleet_registry
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.TEBAKO_CI_APP_ID }}
+          private-key: ${{ secrets.TEBAKO_CI_APP_PRIVATE_KEY }}
+          owner: tebako-packages
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
+          token: ${{ steps.fleet.outputs.token }}
       - name: Guard — the tag IS the tebako product line
         # The composed-name fetch path ({base}/v<line>/<asset>, spec 13
         # §2a) resolves release AND asset stem from the one pin, so a tag
@@ -866,13 +887,13 @@ jobs:
       # main is branch-protected (and the GitHub-Actions bypass is not
       # available on this plan): the registry lands by bot PR + auto-merge,
       # never by direct push. Idempotent across re-runs of the same tag.
-      # The PR is created AND merged under the CI PAT (tebako#686): a
-      # GITHUB_TOKEN-authored PR never triggers pull_request workflows,
-      # so its required checks would sit "expected" forever and
-      # auto-merge would never fire.
+      # The PR is created AND merged under the fleet App's token
+      # (tebako#686, tebako-release#3): a GITHUB_TOKEN-authored PR never
+      # triggers pull_request workflows, so its required checks would sit
+      # "expected" forever and auto-merge would never fire.
       - name: Publish the registry entry via pull request
         env:
-          GH_TOKEN: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
+          GH_TOKEN: ${{ steps.fleet.outputs.token }}
         run: |
           set -euo pipefail
           cp tpkg-registry.yaml "$RUNNER_TEMP/registry.yaml"
@@ -909,37 +930,37 @@ jobs:
           fi
           gh pr merge --auto --squash "$branch" || gh pr merge --squash "$branch"
 
-          # Immediacy, not correctness (tebako-packages/registry#5). The
-          # official aggregate polls every six hours, so a publish stays
-          # invisible to `tebako install` until the next tick. The dispatch is
-          # fired only AFTER the row is on main (the aggregate reads the
-          # feedstock's registry at its default branch); a dispatch that cannot
-          # be delivered warns and leaves the cron as the floor.
-          - name: Nudge the official registry's aggregate
-            env:
-              GH_TOKEN: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
-            run: |
-              set -uo pipefail
-              if [ -z "${GH_TOKEN:-}" ]; then
-                echo "::warning::TEBAKO_CI_PAT_TOKEN is unset — the aggregate picks this publish up on its six-hourly tick"
-                exit 0
-              fi
-              branch="publish/${{ github.ref_name }}-registry"
-              state=""
-              for _ in $(seq 1 30); do
-                state=$(gh pr view "$branch" --json state --jq .state 2>/dev/null || echo "")
-                [ "$state" = "MERGED" ] && break
-                sleep 10
-              done
-              if [ "$state" != "MERGED" ]; then
-                echo "::warning::the registry row is not on main yet ($state) — the six-hourly tick catches it"
-                exit 0
-              fi
-              gh api repos/tebako-packages/registry/dispatches \
-                -f event_type=feedstock-published \
-                -f client_payload[feedstock]="${{ github.repository }}" \
-                -f client_payload[tag]="${{ github.ref_name }}" \
-                || echo "::warning::the aggregate dispatch failed — the six-hourly tick still catches it"
+      # Immediacy, not correctness (tebako-packages/registry#5). The
+      # official aggregate polls every six hours, so a publish stays
+      # invisible to `tebako install` until the next tick. The dispatch is
+      # fired only AFTER the row is on main (the aggregate reads the
+      # feedstock's registry at its default branch); a dispatch that cannot
+      # be delivered warns and leaves the cron as the floor.
+      - name: Nudge the official registry's aggregate
+        env:
+          GH_TOKEN: ${{ steps.fleet_registry.outputs.token }}
+        run: |
+          set -uo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::the fleet token is unset — the aggregate picks this publish up on its six-hourly tick"
+            exit 0
+          fi
+          branch="publish/${{ github.ref_name }}-registry"
+          state=""
+          for _ in $(seq 1 30); do
+            state=$(gh pr view "$branch" --json state --jq .state 2>/dev/null || echo "")
+            [ "$state" = "MERGED" ] && break
+            sleep 10
+          done
+          if [ "$state" != "MERGED" ]; then
+            echo "::warning::the registry row is not on main yet ($state) — the six-hourly tick catches it"
+            exit 0
+          fi
+          gh api repos/tebako-packages/registry/dispatches \
+            -f event_type=feedstock-published \
+            -f client_payload[feedstock]="${{ github.repository }}" \
+            -f client_payload[tag]="${{ github.ref_name }}" \
+            || echo "::warning::the aggregate dispatch failed — the six-hourly tick still catches it"
 
   # The terminal aggregate — and the branch-protection gate. The build
   # legs are a dynamic matrix whose check names shift with the matrix

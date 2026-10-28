@@ -47,7 +47,7 @@ jobs:
         # x-ratelimit-reset and names it when it survives; a 404 stays a
         # dead upstream.
         env:
-          GH_TOKEN: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           ruby tools/monitor | tee monitor-result.json
@@ -67,20 +67,29 @@ jobs:
           ruby tools/monitor --pr-body monitor-result.json | tee pr-body.md
           cat pr-body.md >> "$GITHUB_STEP_SUMMARY"
 
+      # The fleet identity (tebako-release#3): the tebako-fleet App's
+      # installation token — own rate budget, and app-pushed branches
+      # fire pull_request CI.
+      - name: Mint the fleet token
+        id: fleet
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.TEBAKO_CI_APP_ID }}
+          private-key: ${{ secrets.TEBAKO_CI_APP_PRIVATE_KEY }}
+
       # A GITHUB_TOKEN-authored PR never triggers on:pull_request
       # workflows (GitHub's anti-recursion rule) — the lint gate's required
       # context then never reports and the PR blocks forever (the
       # tebako-runtime-bun 1.4.3 bump needed an admin merge for exactly
-      # this). The suite registry PRs' established pattern: author with the
-      # org PAT so CI runs like on any human PR. add-paths keeps the commit
-      # to the recipe alone — never the runner's .bundle config
-      # (bundler-cache writes one), never the run's monitor-result.json or
-      # pr-body.md. No auto-merge.
+      # this). Author with the fleet App's token so CI runs like on any
+      # human PR. add-paths keeps the commit to the recipe alone — never
+      # the runner's .bundle config (bundler-cache writes one), never the
+      # run's monitor-result.json or pr-body.md. No auto-merge.
       - name: open the bump pull request
         if: fromJSON(steps.monitor.outputs.verdict).action == 'bump'
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
+          token: ${{ steps.fleet.outputs.token }}
           branch: monitor/openjdk-pin
           add-paths: Tebakofile
           title: ${{ fromJSON(steps.monitor.outputs.verdict).title }}
