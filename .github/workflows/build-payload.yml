@@ -169,7 +169,7 @@ jobs:
         platform:
           - triplet: aarch64-macos
             asset_platform: macos-arm64
-            os: macos-14
+            os: macos-15
             exe_suffix: ""
             tar: tar
           - triplet: x86_64-windows-ucrt
