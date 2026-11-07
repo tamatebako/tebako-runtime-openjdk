@@ -248,6 +248,33 @@ RSpec.describe ReleaseMonitor do
     end
   end
 
+  it "holds, never reds, when every newer candidate is mid-staging (temurin's staged assets)" do
+    # Only the incomplete 21.0.13+9 is newer than the pin: nothing resolves,
+    # so the verdict is held (the run stays green) — the monitor never pins
+    # bytes upstream has not published, and a daily red over an upstream's
+    # staging window teaches people to ignore the lane.
+    upstream = FakeUpstream.new(
+      tags: ["jdk-21.0.13+9"],
+      assets: {
+        "jdk-21.0.13+9" => ["OpenJDK21U-jre_aarch64_mac_hotspot_21.0.13_9.tar.gz",
+                             "OpenJDK21U-jre_aarch64_mac_hotspot_21.0.13_9.tar.gz.sha256.txt"]
+      },
+      texts: {}
+    )
+    with_recipe(RECIPE) do |path|
+      verdict = described_class.check(recipe_path: path, upstream: upstream)
+
+      expect(File.read(path)).to eq(RECIPE)
+      expect(verdict[:action]).to eq("held")
+      expect(verdict[:held_reason]).to include("21.0.13")
+      expect(verdict[:held_reason]).to include("lacks")
+      expect(verdict[:flavors].first[:action]).to eq("held")
+      # The other flavor still answers for itself.
+      graalvm = verdict[:flavors].find { |flavor| flavor[:flavor] == "graalvm" }
+      expect(graalvm[:action]).to eq("current")
+    end
+  end
+
   it "writes nothing under --dry-run" do
     with_recipe(RECIPE) do |path|
       verdict = described_class.check(recipe_path: path, upstream: temurin_upstream, dry_run: true)

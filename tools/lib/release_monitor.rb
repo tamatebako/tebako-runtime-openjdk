@@ -441,19 +441,30 @@ module ReleaseMonitor
       break
     end
 
-    if bumped.nil? && !skipped.empty?
-      raise MonitorError,
-            "NAMED FAILURE: flavors.#{flavor.name} has newer releases on line #{flavor.line} " \
-            "(#{skipped.map { |entry| entry[:candidate] }.join(', ')}) but none resolves every declared source: " \
-            "#{skipped.map { |entry| "#{entry[:candidate]} lacks #{entry[:missing].join(', ')}" }.join('; ')} " \
-            "— the monitor never pins bytes upstream has not published"
-    end
-
     newest_newer = newer.max_by { |entry| entry[:key] }
     verdict = {
       flavor: flavor.name, line: flavor.line, current: flavor.version,
       newer_line: newest_newer && newest_newer[:version], skipped: skipped, edits: []
     }
+
+    if bumped.nil? && !skipped.empty?
+      # Staged upstream publishing (temurin's per-platform assets land over
+      # days): every newer on-line candidate lacks a declared source TODAY.
+      # HOLD, never red — the next run re-checks, and a candidate whose
+      # assets never arrive is superseded by the next release on the line.
+      # A monitor that stays red for days on an upstream's schedule teaches
+      # people to ignore the lane; red stays for the monitor's OWN failures
+      # (a dead upstream, a quota answer that survived the retries, a parse
+      # drift). The bytes stay unpinned either way — the monitor never pins
+      # bytes upstream has not published.
+      verdict[:action] = "held"
+      verdict[:held_reason] =
+        "newer releases on line #{flavor.line} " \
+        "(#{skipped.map { |entry| entry[:candidate] }.join(', ')}) resolve no full source set yet: " \
+        "#{skipped.map { |entry| "#{entry[:candidate]} lacks #{entry[:missing].join(', ')}" }.join('; ')}"
+      return verdict
+    end
+
     if bumped
       edits = plan_edits(lines, flavor, bumped)
       verdict[:action] = "bump"
@@ -780,8 +791,17 @@ module ReleaseMonitor
 
   def summarize(verdicts, dry_run: false)
     bumped = verdicts.select { |verdict| verdict[:action] == "bump" }
-    primary = bumped.first || verdicts.first
-    out = { action: bumped.empty? ? "current" : "bump", current: primary[:current] }
+    held = verdicts.select { |verdict| verdict[:action] == "held" }
+    primary = bumped.first || held.first || verdicts.first
+    action = if bumped.any?
+               "bump"
+             elsif held.any?
+               "held"
+             else
+               "current"
+             end
+    out = { action: action, current: primary[:current] }
+    out[:held_reason] = primary[:held_reason] if primary[:held_reason]
     out[:candidate] = primary[:candidate] if primary[:candidate]
     out[:build] = primary[:build] if primary[:build]
     out[:sources] = primary[:sources] if primary[:sources]
@@ -810,6 +830,7 @@ module ReleaseMonitor
     out[:digest_sources] = verdict[:digest_sources] if verdict[:digest_sources]
     out[:newer_line] = verdict[:newer_line] if verdict[:newer_line]
     out[:skipped] = verdict[:skipped] unless verdict[:skipped].to_a.empty?
+    out[:held_reason] = verdict[:held_reason] if verdict[:held_reason]
     out
   end
 
@@ -834,6 +855,10 @@ module ReleaseMonitor
       lines << ""
     end
     flavors.reject { |flavor| flavor["action"] == "bump" }.each do |flavor|
+      if flavor["action"] == "held"
+        lines << "**#{flavor['flavor']}** (line #{flavor['line']}): held at #{flavor['current']} — #{flavor['held_reason']}."
+        next
+      end
       text = "**#{flavor['flavor']}** (line #{flavor['line']}): current at #{flavor['current']}."
       text += " Newer line #{flavor['newer_line']} not crossed." if flavor["newer_line"]
       lines << text
