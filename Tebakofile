@@ -281,12 +281,12 @@ tools:
       windows-ucrt64: "b06ee4975992b5ef3b372662887db6c5ff851651310bb94545a4a8d6bb1b7cba"
       windows-ucrt-arm64: "5327fb1da1f6fa91f3f1e95c74b38b982b20f4b0d63dd45177c926889e36f9b8"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
-      macos-arm64: "f9928a420d2726a3722639048ff926924855080791d92243ecd1da59f73a27da"
-      macos-x86_64: "e03c1dfd57b27f552de641176754d86c042fff1aca0241d077b0b106881f8093"
-      linux-gnu-x86_64: "607b34099b8aa784d90ade9f4b179b842c39a072799641bb0926cc1810b3839b"
-      linux-gnu-arm64: "69041faa6308ab43aa78c1dc69d1fc77a72f01fc35854fc114961dbf6ff1e4e4"
-      linux-musl-x86_64: "47ff76e6b3b019738648b5a858aa583142f99bb2f3bb8b41494cc511939951c5"
-      linux-musl-arm64: "1cea392a51a81fe79f6d88ad4287603c81fc00c50e121f0e3303bdcaf26b286d"
+      macos-arm64: "104e3b36e4c0d21ee07730303417261569a3422bc12abf3b48f88576b85d0c2c"
+      macos-x86_64: "1f9bf8c146000b3b03b140d5c3703126368b324a95eefcd7011f7fb60230788d"
+      linux-gnu-x86_64: "019eacc33128a7e3767f322608a9ab6c3c011562a6a2efbbdae7837c6a9ad0ed"
+      linux-gnu-arm64: "a251613250314af46fd3058feb839917ad7caf3ebcf677c17d3ac3bc792fee76"
+      linux-musl-x86_64: "48d1f895ace70caaf15b6885eb6d73c1a14746ab391e29984334e02755622e51"
+      linux-musl-arm64: "1d6e6ff0e860208290edc49f12d5e07c1a430cb1813f242b57953965cf82fa0d"
 
 image:
   format: limnifs
