@@ -231,21 +231,21 @@ runtime:
   # Cadence roll: the pair's windows legs omit the preload shim and do
   # not consume the unit. First tag carrying the win-arm64 +
   # x86_64-macos legs (#67).
-  wrapper_tebako: "2.8.74"
+  wrapper_tebako: "2.8.75"
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
   # download would be a supply-chain hole). Digests are the v2.8.49
   # release's own asset digests (fetched 2026-10-21; the
   # windows-ucrt-arm64 launcher ships since this line, tebako#830).
   wrapper_sha256:
-    macos-arm64: "dd33f637a951753474ab6e927cb8a1aa1f68597fc43ac920812cf0b904ebd5c8"
-    macos-x86_64: "4ace25c34bb95d4e66bd2f293104eac826cc2b0dfe379019aa910eab73b90ed5"
-    linux-gnu-x86_64: "0a087de055d3d74ead6faa548ce14a6e63a86aeaee24796c91ffceefd456ac91"
-    linux-gnu-arm64: "f343c2c8722b9daab84a88c8e0bb13df567bd1c85d0751d49fb005cc98ca07bd"
-    linux-musl-x86_64: "eb073706aefc1a1d166d1fb50c95468e928137bce25bd4ba0d804655f67d7ac0"
-    linux-musl-arm64: "7830ba178ca95018049add7a66e0d4f551ab09159b89af68df9bc7719f653721"
-    windows-ucrt64: "067ca9fadfaa2027c509f38b32a6cff543da34c4694b5ee5404b9c7a806b5779"
-    windows-ucrt-arm64: "a23f08d973f7815681cd341425aa412b1dd3a8ceb644000f7099d2f1c4d21529"
+    macos-arm64: "f3af29e5a39aa6cba42c4e94f0049352347be0edf689eb8fac25830fb12409e6"
+    macos-x86_64: "10fb8219e2a7eec94860f2f5688658204be3a86170dde63231de857388cfe2a5"
+    linux-gnu-x86_64: "3b2baca6932bda3589f267033fecbb5ff69b67048c32a7a1adb08c3a782d3b54"
+    linux-gnu-arm64: "1925e0369a1fbbcd683eaf707f11f3951dcff190269939f52488a2846466b2f6"
+    linux-musl-x86_64: "1ad547f62a6e3207b4e8091c9f69b63a50c194c9213abc9ba87d0010aba3d621"
+    linux-musl-arm64: "554a974aa415dd7ad7744606b398044a1e8cd9472b67474fe3e89a9de762e63a"
+    windows-ucrt64: "ced3dd14bcc6ca98a51f15903147618612a71818b54e68e9fa62d1f2515ff216"
+    windows-ucrt-arm64: "dc72d4353dd79b5708a1524397192fb984b4678c67fe47110c0ce62226f72c76"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
@@ -258,7 +258,7 @@ runtime:
 # 2026-10-21).
 tools:
   repo: "tamatebako/tebako"
-  release: "v2.8.74"
+  release: "v2.8.75"
   # The release machinery pin: the tamatebako/tebako-release-tooling tag
   # the Gemfile resolves (the sign step's tebako-release exe). The gem is
   # the signer's single owner (ecosystem invariant 10) — this feedstock
@@ -272,21 +272,21 @@ tools:
   release_tooling: "v0.5.1"
   sha256:
     tfs:
-      macos-arm64: "f9928a420d2726a3722639048ff926924855080791d92243ecd1da59f73a27da"
-      macos-x86_64: "e03c1dfd57b27f552de641176754d86c042fff1aca0241d077b0b106881f8093"
-      linux-gnu-x86_64: "607b34099b8aa784d90ade9f4b179b842c39a072799641bb0926cc1810b3839b"
-      linux-gnu-arm64: "69041faa6308ab43aa78c1dc69d1fc77a72f01fc35854fc114961dbf6ff1e4e4"
-      linux-musl-x86_64: "47ff76e6b3b019738648b5a858aa583142f99bb2f3bb8b41494cc511939951c5"
-      linux-musl-arm64: "1cea392a51a81fe79f6d88ad4287603c81fc00c50e121f0e3303bdcaf26b286d"
-      windows-ucrt64: "b06ee4975992b5ef3b372662887db6c5ff851651310bb94545a4a8d6bb1b7cba"
-      windows-ucrt-arm64: "5327fb1da1f6fa91f3f1e95c74b38b982b20f4b0d63dd45177c926889e36f9b8"
+      macos-arm64: "56fb1366b724d951a4a6e909b1a109e1de58cffe9a67d254ed809a038d09cb05"
+      macos-x86_64: "57891b0ff7559e82c2a5006619e92a84b94bec7afed0044e98237cc7abcffeeb"
+      linux-gnu-x86_64: "802fbc0260e3ab8c64f765d24bfdcb04c35c624af91216ce9258dc5b1f17aa25"
+      linux-gnu-arm64: "5998ff5e42fc46aea692ec4b8257515561711e5579357125d45bfa535f221182"
+      linux-musl-x86_64: "6230f5c3cebcbb15965072174f1defd07f5d077356a2d820e3b9a2a1c98afbfd"
+      linux-musl-arm64: "5fe1001bda91a5c7e617e81e01a918b40b8c74c7bf34af14e20844273cba8809"
+      windows-ucrt64: "3b40c160a5fb5356ac871a573f12b491ac07672935ee6259ad3a6474201a41a0"
+      windows-ucrt-arm64: "b981ced085ca32353f9f9ae141814fa5a69c158e096ce16d05149b65531e5528"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
-      macos-arm64: "104e3b36e4c0d21ee07730303417261569a3422bc12abf3b48f88576b85d0c2c"
-      macos-x86_64: "1f9bf8c146000b3b03b140d5c3703126368b324a95eefcd7011f7fb60230788d"
-      linux-gnu-x86_64: "019eacc33128a7e3767f322608a9ab6c3c011562a6a2efbbdae7837c6a9ad0ed"
-      linux-gnu-arm64: "a251613250314af46fd3058feb839917ad7caf3ebcf677c17d3ac3bc792fee76"
-      linux-musl-x86_64: "48d1f895ace70caaf15b6885eb6d73c1a14746ab391e29984334e02755622e51"
-      linux-musl-arm64: "1d6e6ff0e860208290edc49f12d5e07c1a430cb1813f242b57953965cf82fa0d"
+      macos-arm64: "25c27e3dd278db7e0051bbdde099fce0c44b42fd66a86ca86c31c10910d58791"
+      macos-x86_64: "a7b52809e035abe0df79ac92ee51b17546975734dea99a29495d1103b52017fd"
+      linux-gnu-x86_64: "e2815374e4d0fdf8e286bcf10cf8861e2019859eb2bf380f325d16566ad4b60f"
+      linux-gnu-arm64: "bf41f3b8bb8ea7e4d3a0f88676a729ce229cb7248320f79631ccc8fa584fdc5d"
+      linux-musl-x86_64: "143a3b27856c4cfc4a0296aef8a7118044da0581698b5dde1a3acd2a3df0172d"
+      linux-musl-arm64: "a33ace898d55b5ffeeef2b954c5f88291714de6f6c8737f4e941b7e3ed366443"
 
 image:
   format: limnifs
