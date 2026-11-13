@@ -912,7 +912,18 @@ jobs:
           # force-with-lease on the bot branch: a re-publish re-creates it
           # (the first attempt's branch rejected the second's push, 21.0.12)
           git push --force-with-lease origin "$branch"
-          if ! gh pr view "$branch" >/dev/null 2>&1; then
+          # tebako#1050: re-dispatch safety (the ruby coordinator's shape,
+          # mirrored). The probe is state-filtered and a probe failure is a
+          # named error — a swallowed transport error (a 502 in the lookup)
+          # must never read as "no PR", or the create dies on
+          # already-exists and a re-dispatch fails deterministically
+          # (the python factory's v0.3.5 publish, run 43370376600 attempt 2).
+          probe() { gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty'; }
+          if ! number="$(probe)"; then
+            echo "::error::could not query the open PRs for $branch — refusing to guess (a wrong guess duplicates the PR or strands the render)"
+            exit 1
+          fi
+          if [ -z "$number" ]; then
             body="$RUNNER_TEMP/registry-pr-body.md"
             # The heredoc body sits at the YAML block's base indent so it
             # de-indents to column 0: `<<'` (no dash) keeps leading
@@ -924,9 +935,26 @@ jobs:
           (spec 13 §2a's audit+registry job; spec 04 §2's mirror). main is
           protected, so the registry lands by PR.
           EOF
-            gh pr create --base main --head "$branch" \
-              --title "publish ${{ github.ref_name }}: registry entry" \
-              --body-file "$body"
+            if ! create_out="$(gh pr create --base main --head "$branch" \
+                                    --title "publish ${{ github.ref_name }}: registry entry" \
+                                    --body-file "$body" 2>&1)"; then
+              case "$create_out" in
+                *"already exists"*)
+                  # The probe→create race (a concurrent attempt opened the
+                  # PR between the two): the push above already delivered
+                  # the render to the branch the PR tracks.
+                  echo "$create_out"
+                  ;;
+                *)
+                  echo "$create_out" >&2
+                  exit 1
+                  ;;
+              esac
+            fi
+            number="$(probe)" || true
+            [ -n "${number:-}" ] || { echo "::error::$branch: the PR was created but could not be re-resolved"; exit 1; }
+          else
+            echo "registry PR #$number already open for $branch (a re-dispatch) — the force-push healed the head; reusing it"
           fi
           gh pr merge --auto --squash "$branch" || gh pr merge --squash "$branch"
 
