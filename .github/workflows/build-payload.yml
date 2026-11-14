@@ -422,6 +422,33 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Preflight the TrustedSigning module (spec 34 §8.2)
+        if: steps.signgate.outputs.armed == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # PSGallery must be REGISTERED before Install-Module can name it
+          # (the runner image no longer guarantees the default
+          # registration); a healthy registration is a no-op.
+          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+            Register-PSRepository -Default
+          }
+          # The action caches the module at the CurrentUser path while its
+          # own Install-Module lands AllUsers on the elevated runner — a
+          # cache hit restores a 23 KiB stub and the action SKIPS the
+          # install, leaving Invoke-TrustedSigning unrecognized (the ruby
+          # factory's 2026-09-21 legs; tebako-runtime-node#41's windows
+          # legs died of exactly this on 2026-11-14). Install to
+          # CurrentUser HERE, before the action's cache step: the post-job
+          # save then captures a real module, and a poisoned restore can
+          # only overlay — never delete — these bytes.
+          if (-not (Get-Module -ListAvailable TrustedSigning)) {
+            Install-Module -Name TrustedSigning -RequiredVersion 0.5.8 -Repository PSGallery -Scope CurrentUser -Force -AllowClobber
+          }
+          Import-Module TrustedSigning -Force
+          Get-Command Invoke-TrustedSigning | Out-Null
+          Write-Host "TrustedSigning module ready: $((Get-Module TrustedSigning).Version)"
+
       # Signs the staged PE artifacts in sign-staging/ (the staging step
       # above copied the leg's PEs there for extension enumeration; the
       # verify step below restores the signed bytes over the contract
