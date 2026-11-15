@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Spec 31 §3/§5: the macOS runtime signing profile (fixed pair, pinned
+  here until spec 31 §2's manifest derivation lands).
+
+  disable-library-validation — EVERY runtime slice: a hardened-runtime
+    process by default refuses unsigned dylibs, and the driver
+    materializes in-image native code (the preload shim
+    libtfs_preload.dylib, native addons' .node) to the host for
+    dlopen/injection; it carries no Developer ID signature of its own
+    (§1.4).
+  allow-jit — the §3 fixed pair rides every runtime exe; the wrapper
+    itself never JITs (V8's JIT runs in the exec'd node process). The
+    entitlement is a grant, never a requirement — harmless here.
+
+  Keep the two <true/> values on their own lines: the embedding check
+  in tools/macos-sign-notarize-runtime.sh counts them (macOS 15 emits
+  the embedded plist single-line, so it greps for <true/>, not key
+  names).
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>
