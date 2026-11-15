@@ -45,7 +45,10 @@ name: build-payload
 # TRUST PLANE (both passes gate-off byte-identical — spec 00 invariant
 # 7): the x64 windows leg Authenticode-signs the fetched wrapper exe
 # IN-LEG before tools/build pairs+hashes it (spec 34 §8.2 — sign-then-
-# hash by construction, never a re-hash). The win-arm64 leg ships
+# hash by construction, never a re-hash), and the macos legs
+# Developer-ID-sign + notarize it the same way (spec 31 §5/§8.4 — the
+# tools/runtime.entitlements pair, gated on the APPLE_SIGNING_ENABLED
+# repo variable). The win-arm64 leg ships
 # unsigned Authenticode by design — the Azure-signing arm64 story is the
 # product repo's phase-3 item (its own arm64 ship leg carries no signing
 # boundary either), and unsigned stays first-class — while every leg,
@@ -327,8 +330,8 @@ jobs:
       # 29). Same releases-are-the-interface rule as the imager; ships
       # since tebako v2.1.0 (the recipe's runtime.wrapper_tebako pin
       # names the line). It stages into its OWN .packager/wrapper/ dir so
-      # the spec 34 sign block below copies from a folder holding ONLY
-      # shippable PEs — .packager itself also carries the tfs imager exe
+      # the sign blocks below copy from a folder holding ONLY shippable
+      # artifacts — .packager itself also carries the tfs imager exe
       # (a build tool, never signed).
       - name: Fetch the wrapper (pinned by Tebakofile)
         if: matrix.platform.container == null
@@ -343,6 +346,37 @@ jobs:
           echo "$WRAPPER_SHA256  $WRAPPER_BIN" | { sha256sum -c - 2>/dev/null || shasum -a 256 -c -; }
           chmod +x "$WRAPPER_BIN"
           echo "WRAPPER_BIN=$WRAPPER_BIN" >> "$GITHUB_ENV"
+
+      # Spec 31 §5/§8.4 — the macOS Apple-plane leg (the port of
+      # tebako-runtime-node's sign step, itself the python → ruby
+      # factories' proven pattern): the fetched wrapper exe is
+      # Developer-ID-signed (hardened runtime, the
+      # tools/runtime.entitlements pair) and notarized here — after its
+      # pin-verified download, BEFORE tools/build pairs it into out/ and
+      # computes the .sha256 sidecar + the release shard's digest, so
+      # every published hash anchors the SIGNED bytes by construction
+      # (sign-then-hash, the same in-leg placement the windows block
+      # below follows) and the wrapper smoke inside tools/build
+      # exercises exactly the shipped bytes. The exe is the fetch step's
+      # own $WRAPPER_BIN — the leg's runtime exe asset before
+      # tools/build's grammar rename.
+      # Gate: APPLE_SIGNING_ENABLED (the repo variable) — unsigned
+      # stays first-class without it (spec 00 invariant 7); armed + a
+      # missing secret is a fast named failure.
+      - name: Sign + notarize the runtime exe (macos, spec 31)
+        if: contains(matrix.platform.triplet, '-macos')
+        shell: bash
+        env:
+          APPLE_SIGNING_ENABLED: ${{ vars.APPLE_SIGNING_ENABLED }}
+          APPLE_DEVELOPER_ID_P12: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ASC_KEY_P8: ${{ secrets.APPLE_ASC_KEY_P8 }}
+          APPLE_ASC_KEY_ID: ${{ secrets.APPLE_ASC_KEY_ID }}
+          APPLE_ASC_ISSUER_ID: ${{ secrets.APPLE_ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          bash tools/macos-sign-notarize-runtime.sh "$WRAPPER_BIN"
 
       # Spec 34 §8.2 — the Windows Authenticode leg (the mirror of
       # tebako-runtime-ruby#157's _build-platform.yml, itself
