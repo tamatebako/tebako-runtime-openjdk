@@ -42,17 +42,17 @@ name: build-payload
 # used: the CLI refuses kind: runtime (runtimes publish through the
 # runtime release flow).
 #
-# TRUST PLANE (both passes gate-off byte-identical — spec 00 invariant
-# 7): the x64 windows leg Authenticode-signs the fetched wrapper exe
+# TRUST PLANE (every pass gate-off byte-identical — spec 00 invariant
+# 7): the windows legs Authenticode-sign the fetched wrapper exe
 # IN-LEG before tools/build pairs+hashes it (spec 34 §8.2 — sign-then-
 # hash by construction, never a re-hash), and the macos legs
 # Developer-ID-sign + notarize it the same way (spec 31 §5/§8.4 — the
 # tools/runtime.entitlements pair, gated on the APPLE_SIGNING_ENABLED
-# repo variable). The win-arm64 leg ships
-# unsigned Authenticode by design — the Azure-signing arm64 story is the
-# product repo's phase-3 item (its own arm64 ship leg carries no signing
-# boundary either), and unsigned stays first-class — while every leg,
-# win-arm64 included, OpenPGP-signs its own served names right after
+# repo variable). BOTH windows legs sign (tebako#1105 — the product's
+# phase-3 arm64 lane: the AZURE_* org secrets cover this repo, and the
+# node + ruby factories already run this exact block green on
+# windows-11-arm) — while every leg
+# OpenPGP-signs its own served names right after
 # publishing them on signing-enabled lines (spec 09 §5, the
 # tebako-release gem's signer — Tebakofile's tools.release_tooling pins
 # it).
@@ -153,8 +153,8 @@ jobs:
       # with the publish/sign steps — tag runs only; disarmed otherwise).
       attestations: write
     # Spec 34's attestation boundary (see the id-token note above). The
-    # build job is shared by every platform's legs — only the x64 windows
-    # leg ever arms the signing chain, but ALL legs carry the
+    # build job is shared by every platform's legs — only the windows
+    # legs ever arm the signing chain, but ALL legs carry the
     # environment: it must NEVER gain required reviewers (that would gate
     # every platform's build on an approval); protection rules stay
     # empty.
@@ -398,7 +398,7 @@ jobs:
       # ships unsigned, byte-identically to today (spec 00 invariant 7 —
       # §7.4 gate-off parity).
       - name: Arm check — Windows signing (spec 34 §4)
-        if: matrix.platform.triplet == 'x86_64-windows-ucrt'
+        if: contains(matrix.platform.triplet, 'windows')
         id: signgate
         shell: bash
         env:
