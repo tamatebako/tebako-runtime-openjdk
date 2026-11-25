@@ -44,6 +44,38 @@ Toolkit era: pre-promotion this repo shipped `kind: toolkit` payloads
 release tags follow the trr convention `v<tebako-line>` (the tag IS the
 tebako line the pair builds against).
 
+## The macOS dyld plane (tebako#1117)
+
+The hardened runtime strips `DYLD_INSERT_LIBRARIES` at exec on macOS 14
+when the EXEC TARGET's own signature lacks
+`com.apple.security.cs.allow-dyld-environment-variables` (the
+tebako-runtime-r#5 class). Under exec-cache neither target's core IO
+rides an insertion, so the wrapper's profile
+(`tools/runtime.entitlements`) needs no dyld grant:
+
+- The **wrapper** (tebako-signed): its boot-head self-insert fires on
+  macOS, but the wrapper only mounts, materializes the JDK home, and
+  execs — nothing in its process consumes the interpose dylib, so a
+  stripped insertion is the product's designed loud fallback. Proven
+  on darwin-23 (macOS 14.1.1 arm64): the published 2.8.50 wrapper —
+  hardened, with NO entitlements embedded at all — boots
+  `java -version` green from the materialized home.
+- The **JVM** (Temurin's bytes, byte-identical): core IO reads the
+  materialized host-real JDK home — no shim needed. The image's
+  `preload_shim` grant serves only the jail's host-IO binding across
+  the exec, and the insertion's survival is governed by TEMURIN's
+  signature, never this repo's profile: verified on the materialized
+  21.0.12 home — `bin/java` is hardened-signed by the Eclipse
+  Foundation (JCDTMS22B4) carrying
+  `com.apple.security.cs.allow-dyld-environment-variables` (plus
+  allow-jit, allow-unsigned-executable-memory,
+  disable-library-validation), so even the jail binding survives
+  macOS 14.
+
+The grant question reopens only if a future flavor changes shape to
+make a tebako-signed exe the insertion target (the python/php/R fs-TU
+re-exec shape) — this repack feedstock never builds one.
+
 ## Release shape (spec 13 §2a — the de-rendezvous)
 
 On a tag, each build leg **publishes and signs in-leg**: the leg that
