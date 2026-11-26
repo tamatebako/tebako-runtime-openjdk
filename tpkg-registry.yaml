@@ -50,7 +50,60 @@ payloads:
         sha256: 31d8ee0db5cfde4d9a9772727e4e29a74488cf0b445c4d31233f8f3e105f6d8a
     release:
       ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.8.50
-  default: 21.0.12
+  - version: 21.0.12.1
+    implementation: temurin
+    platforms:
+      aarch64-linux-gnu:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-gnu-arm64.tfs
+        sha256: 0b4b3bce2873ac37a1d0738e43cd47761fc210722b97ef1d1f3a90aa40f4a714
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-gnu-arm64.tfs.blksum.json
+          sha256: fdd6acc579e995035181bcdd95048297a15fbe7d3893344a624720732f2a1401
+      aarch64-linux-musl:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-musl-arm64.tfs
+        sha256: 558d70f3f68cd294bec1bf9a1e9644e8124cccbde93047bd4d48f0a7efd8033a
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-musl-arm64.tfs.blksum.json
+          sha256: 7311c6bf6349d3288e823eb500dee04ec2ca3fbff58a37f9928017b334e8b97f
+      aarch64-macos:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-macos-arm64.tfs
+        sha256: 31815be27e497c5c7f86b5e7fa39de992647c0f2379e4d42399dbe681d72494e
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-macos-arm64.tfs.blksum.json
+          sha256: 9b2fdb5bf1f451f588001dd8af1b53a331bfe332704d3012ee6847b239412d68
+      aarch64-windows-ucrt:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-windows-ucrt-arm64.tfs
+        sha256: fd16f286e321e67edc71117d078401efeb376ffd5e1eaf1d6af1b5389ee79524
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-windows-ucrt-arm64.tfs.blksum.json
+          sha256: 5506946bf781b319ae460c7be1ce93dbe724cf5b994ab3831226e3689a2b46aa
+      x86_64-linux-gnu:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-gnu-x86_64.tfs
+        sha256: 21bf9facd32a47127d4db5005334991851305db27dbf6ce0bbf78ab8280fbf9a
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-gnu-x86_64.tfs.blksum.json
+          sha256: 18cfb014fc76d865f7871f2883a00403c633815f58b5c4afbe2968178ffb962c
+      x86_64-linux-musl:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-musl-x86_64.tfs
+        sha256: cebad21f72e57b47d19da1c4736200f07a465efa944cb222e855cf8404170130
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-linux-musl-x86_64.tfs.blksum.json
+          sha256: 2aa9de25785bc2e5d2c946cd41acd3de2ec79eb8919bf88cc8103b94c6bb0ac4
+      x86_64-macos:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-macos-x86_64.tfs
+        sha256: 5350bfafef656ede758ecb276ceec820d33d90520c05a1bde60bc9dff33e52b1
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-macos-x86_64.tfs.blksum.json
+          sha256: 308a2fabd6b07485dea2d3c2cc16e570edcc003e7ee3d7182810c3cf7abc3169
+      x86_64-windows-ucrt:
+        artifact: tebako-runtime-2.8.85-temurin-21.0.12.1-windows-ucrt64.tfs
+        sha256: 02a7799e37b8cea8b18cb453dcbc1bd453b7e7540f913d2b4eea4556316799a0
+        blksum:
+          filename: tebako-runtime-2.8.85-temurin-21.0.12.1-windows-ucrt64.tfs.blksum.json
+          sha256: 325dc5fce672b326f1f9ca936064a56c374a9d6f5fb70cb9e56405dbd20befd9
+    release:
+      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.8.85
+  default: 21.0.12.1
   engine: java
 - name: openjdk-graalvm
   kind: runtime
@@ -59,18 +112,30 @@ payloads:
     implementation: graalvm
     platforms:
       aarch64-linux-gnu:
-        artifact: tebako-runtime-2.8.50-graalvm-25.0.4.1-linux-gnu-arm64.tfs
-        sha256: 262e2a6bb39f7cbc9b399a2562cdceb648862383ce04267631f6cbef1ac66479
+        artifact: tebako-runtime-2.8.85-graalvm-25.0.4.1-linux-gnu-arm64.tfs
+        sha256: c3baaff5c72193b08e310b8238d180965f837655e9bb61cc2d8b920c3ead0725
+        blksum:
+          filename: tebako-runtime-2.8.85-graalvm-25.0.4.1-linux-gnu-arm64.tfs.blksum.json
+          sha256: 82940687a415f81cf83769f2ab0c5409b3a0eca92b63893c9b3eb05e75d88cfc
       aarch64-macos:
-        artifact: tebako-runtime-2.8.50-graalvm-25.0.4.1-macos-arm64.tfs
-        sha256: f2608617437a69833d27f2efd942c7125f3fea6e535b451ba48994850d3ec610
+        artifact: tebako-runtime-2.8.85-graalvm-25.0.4.1-macos-arm64.tfs
+        sha256: 8bc2db6240391de3bab3927a397c2623d624736301751d1f0105ad7e7faf91bc
+        blksum:
+          filename: tebako-runtime-2.8.85-graalvm-25.0.4.1-macos-arm64.tfs.blksum.json
+          sha256: 92856e9a985ad23a8b085f9336864c890bb50472bab826f8013e1bec9c6c9fcd
       x86_64-linux-gnu:
-        artifact: tebako-runtime-2.8.50-graalvm-25.0.4.1-linux-gnu-x86_64.tfs
-        sha256: 49d8fe2617dc9a158acf1a761a7e3e19c3caadcc800e5f532b30f24f9bd82240
+        artifact: tebako-runtime-2.8.85-graalvm-25.0.4.1-linux-gnu-x86_64.tfs
+        sha256: c5358a46dd244f4c02a4ea26d12db30af5e0bb6c29f3e209bd761438c18e5c91
+        blksum:
+          filename: tebako-runtime-2.8.85-graalvm-25.0.4.1-linux-gnu-x86_64.tfs.blksum.json
+          sha256: 279cffaf70cc3339ecd23b422c88a8c33c5529d2bbb84e567f569e880d58a97a
       x86_64-windows-ucrt:
-        artifact: tebako-runtime-2.8.50-graalvm-25.0.4.1-windows-ucrt64.tfs
-        sha256: fdd41f594f43136b60b2da64300d77a813b995c69662c8c62476a4fe35d6d08b
+        artifact: tebako-runtime-2.8.85-graalvm-25.0.4.1-windows-ucrt64.tfs
+        sha256: e3b453eab35710c81fd846ef65ff25699354ffd55bcd9462bef7fbc855d0bfb8
+        blksum:
+          filename: tebako-runtime-2.8.85-graalvm-25.0.4.1-windows-ucrt64.tfs.blksum.json
+          sha256: fa9f4e7e51d61c62a704e45d6ad175338659bce4b63e8672a76600c5a0b8d75f
     release:
-      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.8.50
+      ref: tfs:github:tamatebako/tebako-runtime-openjdk:v2.8.85
   default: 25.0.4.1
   engine: java
