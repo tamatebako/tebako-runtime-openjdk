@@ -1119,3 +1119,56 @@ jobs:
               fi
               ;;
           esac
+
+  # Provenance v2 lane 1 (provenance-release) — partial tier: distributed but not
+  # owned upstream. Attestation + SBOM + attested SHA256SUMS.txt only; no OpenVEX
+  # statements and no support claim on the upstream's behalf. Add-only; the
+  # existing code-signing and SLSA L3 attest step are untouched.
+  stage-provenance-artifacts:
+    name: Stage release artifacts for provenance
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download published release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --dir release-artifacts --clobber
+          find release-artifacts -type f \( -name '*.sha256' -o -name '*.asc' -o -name '*.sig' \) -delete
+          shopt -s nullglob
+          payloads=(release-artifacts/*)
+          if (( ${#payloads[@]} == 0 )); then
+            echo "ERROR: no payload assets found on release ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          ls -la release-artifacts/
+      - name: Upload staged release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-provenance-artifacts
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 1
+
+  provenance:
+    name: Generate and attest release provenance
+    needs: [release, stage-provenance-artifacts]
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: riboseinc/provenance-release/.github/workflows/release.yml@016079a9c4987e4b0b55d88e87fe8dc665f6d34d
+    with:
+      artifacts: release-artifacts
+      artifact-name: release-provenance-artifacts
+      release-tag: ${{ github.ref_name }}
+      author: "Ribose Inc."
+      supplier: "OpenJDK"
+      attest: true
+      upload-release: true
+      vex: false
